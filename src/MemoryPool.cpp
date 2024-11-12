@@ -1,4 +1,6 @@
 #include"MemoryPool.hpp"
+#include<mutex>
+#define BlockSize 4096
 struct Slot
 {
     Slot* next;
@@ -7,15 +9,74 @@ class MemoryPool
 {
     public:
         Slot* allocate();
+        Slot* nofree_solve();
         void deallocate(void* p);
+        Slot* currentBlock_;//当前的块
+        Slot* currentSlot_;//当前可以分配的槽
+        Slot* freeslot_;//链表
+        Slot* lastslot_;//最后标记位
+        Slot* createnewBlock();
+        size_t Caculatepadding(size_t align,char* nowp);
+    private:
+        size_t slot_size;//cao的大小
+        std::mutex free_mutex;
+        std::mutex nofree_mutex;
+        std::mutex other_mutex;
 };
+size_t MemoryPool::Caculatepadding(size_t align,char* nowp)
+{
+    size_t result = reinterpret_cast<size_t>(nowp);
+    return (align - result)%result;
+}
+//现在需要创造一个新的Block
+Slot* MemoryPool::createnewBlock()
+{
+    char* nowBlock = reinterpret_cast<char*>(operator new(BlockSize));
+    //先分配得到空间
+    reinterpret_cast<Slot*>(nowBlock)->next = currentBlock_;
+    currentBlock_ = reinterpret_cast<Slot*>(nowBlock);
+    char* body = nowBlock + sizeof(Slot);
+    size_t paddingsize = Caculatepadding(sizeof(slot_size),body);
+    currentSlot_ = reinterpret_cast<Slot*>(body + paddingsize);
+    lastslot_ = reinterpret_cast<Slot*>(nowBlock + BlockSize - slot_size + 1);
+    Slot* nowslot = currentSlot_;
+    currentSlot_ += (slot_size>>3);    
+    return nowslot;
+    //Block链表维护好
+}
+//这说明free链表中已经没有可以使用的内存了
+Slot* MemoryPool::nofree_solve()
+{
+    std::unique_lock<std::mutex> this_l(nofree_mutex); 
+    if(freeslot_<lastslot_)//说明Block中还有空间可以用
+    {
+            Slot* nowslot = currentSlot_;
+            currentSlot_ += (slot_size<<3);
+            return nowslot;
+    }
+    //这个说明当前block也没有内存可以用了
+    return createnewBlock();
+}
 Slot* MemoryPool::allocate()
 {
-    return nullptr;
+    if(freeslot_!=nullptr)
+    {
+        std::lock_guard<std::mutex> this_g(free_mutex);
+        if(freeslot_!=nullptr)
+        {
+            Slot* nowslot = freeslot_;
+            freeslot_ = freeslot_->next;
+            return nowslot;
+        }
+    }
+    return nofree_solve();
 }
 void MemoryPool::deallocate(void* p)
 {
-
+    if(p==nullptr)return;
+    std::lock_guard<std::mutex> this_guard(free_mutex);
+    Slot* thisp = reinterpret_cast<Slot*>(p);
+    thisp->next = freeslot_;
 }
 
 MemoryPool& getMemoryPool(size_t s)
