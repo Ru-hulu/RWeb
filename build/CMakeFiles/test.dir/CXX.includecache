@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/r/Mysoftware/RWeb/src/MemoryPool.cpp
+MemoryPool.hpp
+/home/r/Mysoftware/RWeb/src/MemoryPool.hpp
+
+/home/r/Mysoftware/RWeb/src/MemoryPool.hpp
+iostream
+-
+memory
+-
+mutex
+-
+
