@@ -29,5 +29,28 @@ namespace MemoryManager
             std::mutex other_mutex;
     };
     extern MemoryPool allpools[64];
-    void Initallpool();
+    extern void* use_Memory(size_t s);
+    extern void free_Memory(size_t s, void* p);
+    extern void Initallpool();
+    template<typename T,typename... Args>
+    T* newElement(Args&&... args)//万能引用
+    {
+        //先向内存池获得空间
+        T* p = reinterpret_cast<T*>(use_Memory(sizeof(T)));
+        if(p!=nullptr)
+        {
+            new(p) T(std::forward<Args>(args)...);//完美转发
+        }
+        return p;
+    }
+    template<typename T>
+    void deleteElement(T* p)
+    {
+        if(p!=nullptr)
+        {
+            p->~T();//先对对象进行析构
+            free_Memory(sizeof(p),reinterpret_cast<void*>(p));
+            //再将内存还给内存池
+        }
+    }
 }

@@ -1,1 +1,0 @@
-/usr/bin/c++  -g   CMakeFiles/test.dir/src/MemoryPool.cpp.o CMakeFiles/test.dir/src/testmem.cpp.o  -o test 

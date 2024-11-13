@@ -1,6 +1,51 @@
 #include"MemoryPool.hpp"
 namespace MemoryManager
 {
+
+    MemoryPool allpools[64];
+    MemoryPool& getMemoryPool(size_t s)
+    {   
+        int mid = ((s+7) >> 3) -1;
+        return allpools[mid];    
+    }
+    void* use_Memory(size_t s)
+    {
+        if(s>512)
+        {
+            return operator new(s);
+        }
+        else
+        {
+            if(s<=0)return nullptr;
+            else
+            {
+                return reinterpret_cast<void*>(getMemoryPool(s).allocate());
+            }
+        }
+        //直接向内存池申请空间的函数
+    }
+    void free_Memory(size_t s, void* p)
+    {
+        if(p==nullptr)return;
+        if(s>512) delete p;//如果太大直接释放
+        else//如果不是很大，就还给内存池
+        {
+            getMemoryPool(s).deallocate(reinterpret_cast<Slot*>(p));
+        }
+        //将内存还给内存池的函数
+    }
+    void Initallpool()
+    {
+        size_t slot_size=0;
+        for(int i=1;i<=64;i++)
+        {
+            slot_size += 8;
+            getMemoryPool(slot_size).init(slot_size);
+        }
+    }
+
+
+
     MemoryPool::MemoryPool(){};
     void MemoryPool::init(size_t s)
     {
@@ -13,7 +58,7 @@ namespace MemoryManager
     size_t MemoryPool::Caculatepadding(size_t align,char* nowp)
     {
         size_t result = reinterpret_cast<size_t>(nowp);
-        return (align - result)%result;
+        return (align - result)%align;
     }
     //现在需要创造一个新的Block
     Slot* MemoryPool::createnewBlock()
@@ -67,77 +112,4 @@ namespace MemoryManager
         Slot* thisp = reinterpret_cast<Slot*>(p);
         thisp->next = freeslot_;
     }
-
-    MemoryPool allpools[64];
-    MemoryPool& getMemoryPool(size_t s)
-    {   
-        int mid = ((s+7) >> 3) -1;
-        return allpools[mid];    
-    }
-
-    void* use_Memory(size_t s)
-    {
-        if(s>512)
-        {
-            return operator new(s);
-        }
-        else
-        {
-            if(s<=0)return nullptr;
-            else
-            {
-                return reinterpret_cast<void*>(getMemoryPool(s).allocate());
-            }
-        }
-        //直接向内存池申请空间的函数
-    }
-
-    void free_Memory(size_t s, void* p)
-    {
-        if(p==nullptr)return;
-        if(s>512) delete p;//如果太大直接释放
-        else//如果不是很大，就还给内存池
-        {
-            getMemoryPool(s).deallocate(reinterpret_cast<Slot*>(p));
-        }
-        //将内存还给内存池的函数
-    }
-
-    template<typename T,typename... Args>
-    T* newElement(Args&&... args)//万能引用
-    {
-        //先向内存池获得空间
-        T* p = reinterpret_cast<T*>(use_Memory(sizeof(T)));
-        if(p!=nullptr)
-        {
-            new(p) T(std::forward<Args>(args)...);//完美转发
-        }
-        return p;
-    }
-
-    template<typename T>
-    void deleteElement(T* p)
-    {
-        if(p!=nullptr)
-        {
-            p->~T();//先对对象进行析构
-            free_Memory(sizeof(p),reinterpret_cast<void*>(p));
-            //再将内存还给内存池
-        }
-    }
-
-    void Initallpool()
-    {
-        size_t slot_size=1;
-        for(int i=0;i<64;i++)
-        {
-            slot_size <<= 3;
-            getMemoryPool(slot_size).init(slot_size);
-        }
-    }
-
-}
-int main(int argc, char** argv)
-{
-    return 0;
 }
