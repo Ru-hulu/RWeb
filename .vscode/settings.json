@@ -74,6 +74,9 @@
         "valarray": "cpp",
         "variant": "cpp",
         "bit": "cpp",
-        "__nullptr": "cpp"
+        "__nullptr": "cpp",
+        "__functional_03": "cpp",
+        "__hash_table": "cpp",
+        "__tree": "cpp"
     }
 }

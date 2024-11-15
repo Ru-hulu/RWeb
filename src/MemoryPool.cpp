@@ -4,7 +4,7 @@ namespace MemoryManager
 
     MemoryPool allpools[64];
     MemoryPool& getMemoryPool(size_t s)
-    {   
+    {
         int mid = ((s+7) >> 3) -1;
         return allpools[mid];    
     }
@@ -43,8 +43,6 @@ namespace MemoryManager
             getMemoryPool(slot_size).init(slot_size);
         }
     }
-
-
 
     MemoryPool::MemoryPool(){};
     void MemoryPool::init(size_t s)
