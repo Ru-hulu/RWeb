@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
 project(MemoryPool)
 SET(CMAKE_BUILD_TYPE "Debug")
-add_executable(test src/MemoryPool.cpp src/testmem.cpp)
+add_executable(test src/testLFU.cpp src/MemoryPool.cpp src/LFUcache.cpp)
+# add_executable(test src/testmem.cpp src/MemoryPool.cpp)

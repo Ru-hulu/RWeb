@@ -1,6 +1,8 @@
 #include<iostream>
 #include<memory>
 #include<mutex>
+#ifndef MEMORYPOOL_HPP
+#define MEMORYPOOL_HPP
 #define BlockSize 4096
 struct Slot
 {
@@ -15,9 +17,10 @@ namespace MemoryManager
             void init(size_t s);
             Slot* allocate();
             Slot* nofree_solve();
-            void deallocate(void* p);
+            void deallocate(Slot* p);
             Slot* currentBlock_;//当前的块
             Slot* currentSlot_;//当前可以分配的槽
+            Slot* begin_slot;            
             Slot* freeslot_;//链表
             Slot* lastslot_;//最后标记位
             Slot* createnewBlock();
@@ -37,6 +40,7 @@ namespace MemoryManager
     {
         //先向内存池获得空间
         T* p = reinterpret_cast<T*>(use_Memory(sizeof(T)));
+        // std::cout<<sizeof(T)<<std::endl;
         if(p!=nullptr)
         {
             new(p) T(std::forward<Args>(args)...);//完美转发
@@ -54,3 +58,4 @@ namespace MemoryManager
         }
     }
 }
+#endif
