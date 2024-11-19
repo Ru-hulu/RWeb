@@ -12,11 +12,11 @@ int main(int argc, char** argv)
     for(int i = 0; i < 26; ++i) {
     seed[i] = std::make_pair('a' + i, 'A' + i);
     }
-    for(int i=0;i<410;i++)
+    for(int i=0;i<100000;i++)
     {
         std::string val;
-        // int temp = rand() % 2;//0-25
-        int temp = i % 10;//0-25
+        int temp = rand() % 26;//0-25
+        // int temp = i % 10;//0-25
         // for(std::pair<std::string,std::string> thisp:seed)
         // {
         //     std::cout<<thisp.first<<" "<<thisp.second<<" ";

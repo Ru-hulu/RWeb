@@ -53,7 +53,7 @@ namespace MemoryManager
         if(p!=nullptr)
         {
             p->~T();//先对对象进行析构
-            free_Memory(sizeof(p),reinterpret_cast<void*>(p));
+            free_Memory(sizeof(T),reinterpret_cast<void*>(p));
             //再将内存还给内存池
         }
     }
