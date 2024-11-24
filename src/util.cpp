@@ -1,11 +1,4 @@
-#include<sys/socket.h>
-#include<fcntl.h>
-#include<signal.h>
-#include<memory.h>
-#include<iostream>
-#include<unistd.h>
-#include<error.h>
-
+#include"util.hpp"
 int socketNonBlock(int fd)
 {
     int flag = 0;
