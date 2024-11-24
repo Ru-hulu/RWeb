@@ -21,7 +21,7 @@ class ThreadPool
         void add_a_task();
         int treadpoll_add_task(void (*function)(void*),void* arg);
         std::condition_variable thread_pool_conv;
-        std::mutex thread_pool_mutex;
+        std::mutex thread_pool_mutex;//处理任务队列的时候使用的锁
         int start_thread;
         threadpoll_task_t* queue;//所有需要处理的任务都在里面
         pthread_t* all_thr;//所有的线程都在这里

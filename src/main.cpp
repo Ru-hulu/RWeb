@@ -132,6 +132,7 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         }        //有一方挂起、连接出错、触发事件，但是没有可读数据的时候。
         else//正常触发,需要找一个线程来处理
         {
+            rqt_->seperateTimer();
             tp->treadpoll_add_task(myHandlefunc,reinterpret_cast<void*>(rqt_));
         }
     }

@@ -27,6 +27,7 @@ bool handle_sigpipe()
     }
     return true;
 }
+//这里给的n是最大可能的读取长度，实际长度可能小于n
 ssize_t read_n(int fd_,void* bf,size_t n)
 {
     size_t nleft = n;
@@ -38,11 +39,11 @@ ssize_t read_n(int fd_,void* bf,size_t n)
         r = read(fd_,np,nleft);
         if(r<0)
         {   //这说明已经发生错误了
-            if(errno == EAGAIN)
+            if(errno == EAGAIN)//资源不可用
             {
                 return nread;
             }
-            else if(errno==EINTR)
+            else if(errno==EINTR)//读取被中断，可以继续读。
             {
                 r = 0;
             }
