@@ -1,5 +1,24 @@
 #include"requestData.hpp"
 #include<unistd.h>
+#include<sys/stat.h>
+#include <sys/mman.h>
+#include<fstream>
+std::unordered_map<std::string,std::string> mime = {
+            {".html"   , "text/html"},
+            {".avi"    , "video/x-msvideo"},
+            {".bmp"    , "image/bmp"},
+            {".c"     , "text/plain"},
+            {".doc"    , "application/msword"},
+            {".gif"    , "image/gif"},
+            {".gz"     , "application/x-gzip"},
+            {".htm"    , "text/html"},
+            {".ico"    , "application/x-ico"},
+            {".jpg"    , "image/jpeg"},
+            {".png"    , "image/png"},
+            {".txt"    , "text/plain"},
+            {".mp3"    , "audio/mp3"},
+            {"default" , "text/html"}
+}; 
 myTimer::myTimer(requestData* rqtp_,size_t timeoutms):rqtp(rqtp_)
 {
     struct timeval tv;
@@ -22,6 +41,7 @@ size_t myTimer::get_expire_time()
 }
 void myTimer::clearRqt()
 {
+    std::cout<<"clearRqt "<<(void*)(rqtp)<<std::endl;
     rqtp = nullptr;
 }
 
@@ -42,7 +62,7 @@ requestData::requestData(int fd_,int epoll_fd_)
     epoll_fd = epoll_fd_;
     state_handle = STATE_PARSE_URI;
     keepalive = false;
-    readagaintime = 0;
+    readagaintime = 0; 
 }
 requestData::~requestData()
 {
@@ -60,6 +80,7 @@ void requestData::setTimer(myTimer* tm_)
 }
 void requestData::seperateTimer()
 {
+    std::cout<<"seperate"<<std::endl;
     mtimer->clearRqt();
     mtimer = nullptr;
 }
@@ -95,11 +116,355 @@ void requestData::reset_data()
 }
 int requestData::parse_URI()
 {   
-    return 1;
+    std::string &str = content;
+    // 读到完整的请求行再开始解析请求
+    int pos = str.find('\r', 0);
+    if (pos < 0)
+    {
+        return PARSE_URI_AGAIN;
+    }
+    // 去掉请求行所占的空间，节省空间
+    std::string request_line = str.substr(0, pos);
+    if (str.size() > pos + 1)
+        str = str.substr(pos + 1);
+    else 
+        str.clear();
+
+    //从http请求中提取动作，只有可能是get（请求数据） 或者 post (上传数据)两种
+    // Method
+    pos = request_line.find("GET");
+    if (pos < 0)
+    {
+        pos = request_line.find("POST");
+        if (pos < 0)
+        {
+            return PARSE_URI_ERROR;
+        }
+        else
+        {
+            method = METHOD_POST;
+        }
+    }
+    else
+    {
+        method = METHOD_GET;
+    }
+    //printf("method = %d\n", method);
+    // filename
+    pos = request_line.find("/", pos);
+    if (pos < 0)
+    {
+        return PARSE_URI_ERROR;
+    }
+    else
+    {
+        int _pos = request_line.find(' ', pos);
+        if (_pos < 0)
+            return PARSE_URI_ERROR;
+        else
+        {
+            if (_pos - pos > 1)
+            {
+                file_name = request_line.substr(pos + 1, _pos - pos - 1);
+                int __pos = file_name.find('?');
+                if (__pos >= 0)
+                {
+                    file_name = file_name.substr(0, __pos);
+                }
+            }
+                
+            else
+                file_name = "index.html";
+        }
+        pos = _pos;
+    }
+    //cout << "file_name: " << file_name << endl;
+    // HTTP 版本号
+    pos = request_line.find("/", pos);
+    if (pos < 0)
+    {
+        return PARSE_URI_ERROR;
+    }
+    else
+    {
+        if (request_line.size() - pos <= 3)
+        {
+            return PARSE_URI_ERROR;
+        }
+        else
+        {
+            std::string ver = request_line.substr(pos + 1, 3);
+            if (ver == "1.0")
+                HTTPversion = HTTP_10;
+            else if (ver == "1.1")
+                HTTPversion = HTTP_11;
+            else
+                return PARSE_URI_ERROR;
+        }
+    }
+    state_handle = STATE_PARSE_HEADERS;
+    return PARSE_URI_SUCCESS;
 }
+
+
 int requestData::parse_HEADER()
 {   
-    return 1;
+    std::string &str = content;
+    int key_start = -1, key_end = -1, value_start = -1, value_end = -1;
+    int now_read_line_begin = 0;
+    bool notFinish = true;
+    for (int i = 0; i < str.size() && notFinish; ++i)
+    {
+        switch(h_state)
+        {
+            case h_start:
+            {
+                if (str[i] == '\n' || str[i] == '\r')
+                break;
+                h_state = h_key;
+                key_start = i;
+                now_read_line_begin = i;
+                break;
+            }
+            case h_key:
+            {
+                if (str[i] == ':')
+                {
+                    key_end = i;
+                    if (key_end - key_start <= 0)
+                        return PARSE_HEADER_ERROR;
+                    h_state = h_colon;
+                }
+                else if (str[i] == '\n' || str[i] == '\r')
+                    return PARSE_HEADER_ERROR;
+                break;  
+            }
+            case h_colon:
+            {
+                if (str[i] == ' ')
+                {
+                    h_state = h_spaces_after_colon;
+                }
+                else
+                    return PARSE_HEADER_ERROR;
+                break;  
+            }
+            case h_spaces_after_colon:
+            {
+                h_state = h_value;
+                value_start = i;
+                break;  
+            }
+            case h_value:
+            {
+                if (str[i] == '\r')
+                {
+                    h_state = h_CR;
+                    value_end = i;
+                    if (value_end - value_start <= 0)
+                        return PARSE_HEADER_ERROR;
+                }
+                else if (i - value_start > 255)
+                    return PARSE_HEADER_ERROR;
+                break;  
+            }
+            case h_CR:
+            {
+                if (str[i] == '\n')
+                {
+                    h_state = h_LF;
+                    std::string key(str.begin() + key_start, str.begin() + key_end);
+                    std::string value(str.begin() + value_start, str.begin() + value_end);
+                    header_map[key] = value;
+                    now_read_line_begin = i;
+                }
+                else
+                    return PARSE_HEADER_ERROR;
+                break;  
+            }
+            case h_LF:
+            {
+                if (str[i] == '\r')
+                {
+                    h_state = h_end_CR;
+                }
+                else
+                {
+                    key_start = i;
+                    h_state = h_key;
+
+                }
+                break;
+            }
+            case h_end_CR:
+            {
+                if (str[i] == '\n')
+                {
+                    h_state = h_end_LF;
+                }
+                else
+                    return PARSE_HEADER_ERROR;
+                break;
+            }
+            case h_end_LF:
+            {
+                notFinish = false;
+                key_start = i;
+                now_read_line_begin = i;
+                break;//整个头部已经解读完成，下面是空行和请求体了
+            }
+        }
+    }
+    if (h_state == h_end_LF)
+    {
+        str = str.substr(now_read_line_begin);
+        return PARSE_HEADER_SUCCESS;
+    }
+    str = str.substr(now_read_line_begin);
+    return PARSE_HEADER_AGAIN;
+}
+std::string requestData::getMime(std::string t)
+{
+    if(mime.find(t)==mime.end())
+    {
+        return mime["default"];
+    }
+    return mime[t];
+}
+
+//状态行、响应头、响应体
+void requestData::handleError(int fd, int err_num, std::string short_msg)
+{
+    short_msg = " " + short_msg;
+    char send_buff[MAX_BUFF];
+    std::string body_buff, header_buff;
+    body_buff += "<html><title>TKeed Error</title>";
+    body_buff += "<body bgcolor=\"ffffff\">";
+    body_buff += std::to_string(err_num) + short_msg;
+    body_buff += "<hr><em> LinYa's Web Server</em>\n</body></html>";
+
+    header_buff += "HTTP/1.1 " + std::to_string(err_num) + short_msg + "\r\n";//状态行
+    header_buff += "Content-type: text/html\r\n";
+    header_buff += "Connection: close\r\n";
+    header_buff += "Content-Length: " + std::to_string(body_buff.size()) + "\r\n";
+    //响应头
+    header_buff += "\r\n";//空行
+    sprintf(send_buff, "%s", header_buff.c_str());
+    write_n(fd, send_buff, strlen(send_buff));
+    sprintf(send_buff, "%s", body_buff.c_str());
+    write_n(fd, send_buff, strlen(send_buff));
+}
+
+int requestData::analysisRequest()
+{
+    //把数据上传到服务器
+    if (method == METHOD_POST)
+    {
+        //get content
+        char header[MAX_BUFF];
+        sprintf(header, "HTTP/1.1 %d %s\r\n", 200, "OK");
+        //先在header中写入http版本信息
+        if(header_map.find("Connection") != header_map.end() && header_map["Connection"] == "keep-alive")
+        {
+            keepalive = true;
+            sprintf(header, "%sConnection: keep-alive\r\n", header);
+            sprintf(header, "%sKeep-Alive: timeout=%d\r\n", header, 500);
+        }//header中写入连接的状态
+
+        //cout << "content=" << content << endl;
+        // test char*
+        char *send_content = "I have receiced this.";
+
+        sprintf(header, "%sContent-Length: %zu\r\n", header, strlen(send_content));
+        sprintf(header, "%s\r\n", header);
+        //写入header信息
+
+        size_t send_len = (size_t)write_n(fd, header, strlen(header));//把header写入fd?
+
+        if(send_len != strlen(header))
+        {
+            perror("Send header failed");
+            return ANALYSIS_ERROR;
+        }
+        
+        send_len = (size_t)write_n(fd, send_content, strlen(send_content));
+        //无关紧要的信息写入fd
+        if(send_len != strlen(send_content))
+        {
+            perror("Send content failed");
+            return ANALYSIS_ERROR;
+        }
+        std::cout << "content size ==" << content.size() << std::endl;
+        std::vector<char> data(content.begin(), content.end());//将请求体内容编码
+
+        std::ofstream t_f;
+        std::unique_lock<std::mutex> nqm(f_n_mtx);
+        f_p_n++;
+        nqm.unlock();
+        t_f.open("/home/r/Mysoftware/RWeb/src/postfile/"+std::to_string(f_p_n)+".txt");
+        if(t_f.is_open())
+        {
+            t_f<<content;
+            t_f.close();
+        }
+        return ANALYSIS_SUCCESS;
+    }
+    else if (method == METHOD_GET)
+    {
+        char header[MAX_BUFF];
+        sprintf(header, "HTTP/1.1 %d %s\r\n", 200, "OK");
+        if(header_map.find("Connection") != header_map.end() && header_map["Connection"] == "keep-alive")
+        {
+            keepalive = true;
+            sprintf(header, "%sConnection: keep-alive\r\n", header);
+            sprintf(header, "%sKeep-Alive: timeout=%d\r\n", header, 500);
+        }
+        //先在header中写入http版本信息
+        //header中写入连接的状态        
+        int dot_pos = file_name.find('.');
+        const char* filetype;
+        if (dot_pos < 0) 
+            filetype = getMime("default").c_str();
+        else
+            filetype = getMime(file_name.substr(dot_pos)).c_str();
+        //解析GET需要访问的文件类型是什么
+        struct stat sbuf;
+        if (stat(file_name.c_str(), &sbuf) < 0)//这个函数的作用是获取一个文件的状态信息
+        {
+            handleError(fd, 404, "Not Found!");
+            return ANALYSIS_ERROR;
+        }
+
+        //文件类型写入header
+        sprintf(header, "%sContent-type: %s\r\n", header, filetype);
+        //文件大小写入header
+        sprintf(header, "%sContent-Length: %ld\r\n", header, sbuf.st_size);
+        sprintf(header, "%s\r\n", header);
+        size_t send_len = (size_t)write_n(fd, header, strlen(header));
+        //将header写入fd
+        if(send_len != strlen(header))
+        {
+            perror("Send header failed");
+            return ANALYSIS_ERROR;
+        }
+        int src_fd = open(file_name.c_str(), O_RDONLY, 0);
+        char *src_addr = static_cast<char*>(mmap(NULL, sbuf.st_size, PROT_READ, MAP_PRIVATE, src_fd, 0));
+        close(src_fd);
+        //把这个文件file_name映射到一个内存空间中，并且返回内存的首地址。这样就可以像访问内存一样访问文件了
+    
+        // 发送文件并校验完整性
+        send_len = write_n(fd, src_addr, sbuf.st_size);
+        //把文件内容发送到fd中
+        if(send_len != sbuf.st_size)
+        {
+            perror("Send file failed");
+            return ANALYSIS_ERROR;
+        }
+        munmap(src_addr, sbuf.st_size);//释放之前映射的一片空间
+        return ANALYSIS_SUCCESS;
+    }
+    else
+        return ANALYSIS_ERROR;
 }
 void requestData::handlerequest()
 {
@@ -180,7 +545,7 @@ void requestData::handlerequest()
             }
             if(state_handle == STATE_ANALYSIS)
             {
-                
+                int a_ret = analysisRequest();//这里说明需要处理的数据已经全部在content里面了，
             }
         }
         if(isError)
@@ -207,6 +572,12 @@ void requestData::handlerequest()
         std::unique_lock<std::mutex>(mutex_timer_q);
         Prio_timer_queue.push(tm);
         //上述的功能应该已经处理好了，接下来应该是连接保留的工作
+
         int ev_id = EPOLLIN|EPOLLONESHOT|EPOLLET;
-        epoll_add(epoll_fd,this,fd,ev_id);
+        int ret = epoll_mod(epoll_fd,this,fd,ev_id);
+        if(ret<0)
+        {
+            delete this;
+            return;
+        }
 }

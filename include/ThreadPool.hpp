@@ -6,6 +6,14 @@
 
 #ifndef THREADPOOL_HPP
 #define THREADPOOL_HPP
+
+const int THREADPOOL_INVALID = -1;
+const int THREADPOOL_LOCK_FAILURE = -2;
+const int THREADPOOL_QUEUE_FULL = -3;
+const int THREADPOOL_SHUTDOWN = -4;
+const int THREADPOOL_THREAD_FAILURE = -5;
+const int THREADPOOL_GRACEFUL = 1;
+
 struct threadpoll_task_t
 {
     void (*function)(void*);
@@ -20,16 +28,15 @@ class ThreadPool
         void consume_a_task();
         void add_a_task();
         int treadpoll_add_task(void (*function)(void*),void* arg);
-        std::condition_variable thread_pool_conv;
+        std::condition_variable thread_pool_conv;//分发任务的时候用的条件变量
         std::mutex thread_pool_mutex;//处理任务队列的时候使用的锁
         int start_thread;
-        threadpoll_task_t* queue;//所有需要处理的任务都在里面
+        threadpoll_task_t* task_queue;//所有需要处理的任务都在里面
         pthread_t* all_thr;//所有的线程都在这里
-        bool shutdown;
-        int head; //queue循环数组头部
-        int tail; //queue的尾部
+        bool shutdown;//线程池是否已经完成删除
+        int head; //task_queue循环数组头部
+        int tail; //task_queue的尾部
         int task_wait_count; //有多少个任务等待处理，后续应该被分配到每个线程中   
         int queue_size; // 任务队列的长度是固定的。因为一个线程需要处理很多个连接的任务，所以有任务队列
-
 };
 #endif

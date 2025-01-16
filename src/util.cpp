@@ -63,6 +63,9 @@ ssize_t read_n(int fd_,void* bf,size_t n)
     return nread;
 }
 
+// 系统资源如内存、文件描述符等都是有限的。
+// 当系统资源紧张时，write系统调用可能无法一次性完成所有数据的写入。
+// 比如，在网络编程中，如果网络缓冲区已满，write调用可能只能写入部分数据，剩余数据需要等待网络缓冲区有空间时再写入。
 ssize_t write_n(int fd_,void* bf,size_t n)
 {
     size_t swrite = 0 ;

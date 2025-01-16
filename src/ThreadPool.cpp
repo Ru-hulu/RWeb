@@ -1,6 +1,6 @@
 #include"ThreadPool.hpp"
 
-
+//每一个线程都需要执行的函数，用来处理连接后的相关业务
 static void *threadpool_thread(void *threadpool)
 {
     ThreadPool* pool = reinterpret_cast<ThreadPool*>(threadpool);
@@ -18,7 +18,7 @@ static void *threadpool_thread(void *threadpool)
         }
         else
         {
-            tk = pool->queue[pool->head];
+            tk = pool->task_queue[pool->head];
             pool->consume_a_task();
             lg.unlock();
         }
@@ -28,10 +28,25 @@ static void *threadpool_thread(void *threadpool)
     pthread_exit(NULL);
     return(NULL);
 }
+int DestroyThreadP(ThreadPool* thr_p)
+{
+    std::unique_lock<std::mutex>mt(thr_p->thread_pool_mutex);
+    if(thr_p==nullptr)
+    {
+        return THREADPOOL_INVALID;
+    }
+    if(thr_p->shutdown)
+    {
+        return THREADPOOL_SHUTDOWN;
+    }
+    mt.unlock();
+    delete thr_p;
+    return 1;
+}
 ThreadPool::ThreadPool(int num_thread,int queue_size_)
 {
     queue_size = queue_size_;
-    queue = new threadpoll_task_t[queue_size_];
+    task_queue = new threadpoll_task_t[queue_size_];
     all_thr = new pthread_t[num_thread];
     head = 0;tail = 0;
     task_wait_count = 0;
@@ -53,15 +68,15 @@ int ThreadPool::treadpoll_add_task(void (*function)(void*),void* arg)
 {
     if(task_wait_count==queue_size)
     {
-        std::cout<<"queue is full, we can't add a task."<<std::endl;
+        std::cout<<"task_queue is full, we can't add a task."<<std::endl;
         return -1;
     }
-        std::unique_lock<std::mutex> unl(thread_pool_mutex);
-        add_a_task();
-        queue[tail].function = function;
-        queue[tail].arg = arg;
-        unl.unlock();
-        thread_pool_conv.notify_one();
+    std::unique_lock<std::mutex> unl(thread_pool_mutex);
+    add_a_task();
+    task_queue[tail].function = function;
+    task_queue[tail].arg = arg;
+    unl.unlock();
+    thread_pool_conv.notify_one();
     return 1;
 }
 bool ThreadPool::InitialPool()
@@ -81,12 +96,12 @@ bool ThreadPool::InitialPool()
 
 ThreadPool::~ThreadPool()
 {
+    std::unique_lock<std::mutex>mt(thread_pool_mutex);
+    thread_pool_conv.notify_all();
+    mt.unlock();
     for(int i=0;i<start_thread;i++)
-    {
-        thread_pool_conv.notify_one();//逐个通知每个线程，释放线程资源
-        pthread_join(all_thr[i],NULL);
-        //先释放所有的线程
-    }
-    delete[] queue;
+    pthread_join(all_thr[i],NULL);
+    delete[] task_queue;
     delete[] all_thr;
+    return;
 }

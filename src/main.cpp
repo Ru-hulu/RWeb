@@ -8,6 +8,9 @@
 #include<queue>
 #include<vector>
 std::mutex mutex_timer_q;
+std::mutex f_n_mtx;
+size_t f_p_n = 0;
+size_t connection_num = 0;
 bool timecmp::operator()(const myTimer* a,const myTimer* b)const
 {
     return ((a)->expired_time >= (b)->expired_time); 
@@ -60,6 +63,7 @@ int socket_bind_listen(int port)
 void HandleExpire()
 {
     std::lock_guard<std::mutex> lckg(mutex_timer_q);
+    size_t exp_t = 0;
     while(Prio_timer_queue.size())
     {
         myTimer* tt = Prio_timer_queue.top();
@@ -69,12 +73,14 @@ void HandleExpire()
         }
         else
         {
+            exp_t+=1;
             Prio_timer_queue.pop();
             delete tt;
         }
     }
+    std::cout<<"Expire connections number is "<<exp_t<<std::endl;
 }
-const int PORT = 8080;
+const int PORT = 8888;
 const std::string PATH = "/";
 const int THREAD_NUM = 4;
 const int QSIZE = 1024;
@@ -103,10 +109,11 @@ void AcceptNewConnection(int listen_fd,int epoll_fd,ThreadPool* tp_)
             continue;
         }
         myTimer* tm = new myTimer(rqt_,TIMEOUT);
-        rqt_->setTimer(tm);
+        rqt_->setTimer(tm);  
         std::unique_lock<std::mutex>ukl(tp_->thread_pool_mutex);
         Prio_timer_queue.push(tm);
         ukl.unlock();
+        connection_num++;
     }
 
     // sockfd：已经绑定（通过 bind 函数）并监听的套接字文件描述符。
@@ -121,8 +128,10 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         epoll_event e = events_get[i];
         requestData* rqt_ = reinterpret_cast<requestData*>(e.data.ptr);
         int happen_fd = rqt_->getFd();
+        std::cout<<"happen_fd "<<happen_fd<<"listen_fd "<<listen_fd<<std::endl;
         if(happen_fd == listen_fd)
         {
+            std::cout<<"A new conection arrives!"<<std::endl;
             AcceptNewConnection(listen_fd,epoll_fd,tp);
         }
         else if((e.events & EPOLLHUP)||(e.events & EPOLLERR) || !(e.events & EPOLLIN))
@@ -132,6 +141,7 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         }        //有一方挂起、连接出错、触发事件，但是没有可读数据的时候。
         else//正常触发,需要找一个线程来处理
         {
+            std::cout<<"A new service request arrives!"<<std::endl;            
             rqt_->seperateTimer();
             tp->treadpoll_add_task(myHandlefunc,reinterpret_cast<void*>(rqt_));
         }
@@ -151,8 +161,7 @@ int main(int argc, char** argv)
         std::cout<<"socketNonBlock failed!!!"<<std::endl;
         return 1;
     }
-    requestData* rqt_data = new requestData(epoll_fd,listen_fd);
-    rqt_data->setFd(listen_fd);
+    requestData* rqt_data = new requestData(listen_fd,epoll_fd);
     uint32_t eve_id = EPOLLIN|EPOLLET;
     epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_data),listen_fd,eve_id);
     ThreadPool tp(THREAD_NUM,QSIZE);
@@ -162,17 +171,16 @@ int main(int argc, char** argv)
         std::cout<<"initial failed"<<std::endl;
         return 1;
     }//以下tp不可能出现shutdown的情况。
-
     while(true)
     {
         int even_size = my_epoll_wait(epoll_fd,events_get,TIMEOUT,MAXQ);
         if(even_size<=0)continue;
+        std::cout<<"now we have "<<even_size<< "connections"<<std::endl;
         Handle_Events(epoll_fd,listen_fd,even_size,&tp);
         HandleExpire();
         //拿到所有的触发事件
         //判定如果是连接事件，处理新的连接
         //如果不是连接事件，就用线程池分配给线程处理
     }
-    socket_bind_listen(8080);
     return 1;
 }
