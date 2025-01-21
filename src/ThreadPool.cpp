@@ -3,14 +3,21 @@
 //每一个线程都需要执行的函数，用来处理连接后的相关业务
 static void *threadpool_thread(void *threadpool)
 {
+    int this_thread_id = 0;
     ThreadPool* pool = reinterpret_cast<ThreadPool*>(threadpool);
-
     std::unique_lock<std::mutex>lg(pool->thread_pool_mutex);
+    this_thread_id = pool->thread_id_counter;
+    pool->thread_id_counter++;
     threadpoll_task_t tk;
     for(;;)
     {
         // 没有与参数列表匹配的 重载函数 "std::condition_variable::wait" 实例
+        if(!lg.owns_lock())
+        {
+            lg.lock();
+        }
         pool->thread_pool_conv.wait(lg,[pool](){return (pool->shutdown==true || pool->task_wait_count!=0);} );
+        std::cout<<pool->shutdown<<" "<<pool->task_wait_count<<std::endl;
         //如果通知线程关闭，或者有数据需要处理，则继续：
         if(pool->shutdown)
         {
@@ -19,12 +26,17 @@ static void *threadpool_thread(void *threadpool)
         else
         {
             tk = pool->task_queue[pool->head];
-            pool->consume_a_task();
+            pool->consume_a_task_update_idex();
+            std::cout<<"heres "<<this_thread_id<<"own lock "<<lg.owns_lock()<<std::endl;
             lg.unlock();
+            std::cout<<"heree "<<this_thread_id<<std::endl;
         }
+        std::cout<<"Thread "<<this_thread_id<<" start consuming a task"<<std::endl;
         (*tk.function)(tk.arg);
+        std::cout<<"Thread "<<this_thread_id<<" finish a task"<<std::endl;
     }
     pool->start_thread--;
+    std::cout<<"Thread "<<this_thread_id<<" exit"<<std::endl;
     pthread_exit(NULL);
     return(NULL);
 }
@@ -52,13 +64,13 @@ ThreadPool::ThreadPool(int num_thread,int queue_size_)
     task_wait_count = 0;
     shutdown = false;
 }
-void ThreadPool::consume_a_task()
+void ThreadPool::consume_a_task_update_idex()
 {
     head ++;
     task_wait_count --;
     head = head % queue_size;
 }
-void ThreadPool::add_a_task()
+void ThreadPool::add_a_task_update_idex()
 {
     tail ++;
     task_wait_count ++;
@@ -72,16 +84,15 @@ int ThreadPool::treadpoll_add_task(void (*function)(void*),void* arg)
         return -1;
     }
     std::unique_lock<std::mutex> unl(thread_pool_mutex);
-    add_a_task();
     task_queue[tail].function = function;
     task_queue[tail].arg = arg;
+    add_a_task_update_idex();
     unl.unlock();
     thread_pool_conv.notify_one();
     return 1;
 }
 bool ThreadPool::InitialPool()
 {
-    //if(pthread_create(&(pool->threads[i]), NULL, threadpool_thread, (void*)pool) != 0)     
     for(int i=0;i<sizeof(all_thr)/sizeof(pthread_t);i++)
     {
         if(pthread_create(&all_thr[i],NULL,threadpool_thread,this)!=0)

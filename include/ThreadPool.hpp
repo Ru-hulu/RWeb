@@ -25,9 +25,10 @@ class ThreadPool
         ThreadPool(int num_thread,int que_size);
         ~ThreadPool();
         bool InitialPool();
-        void consume_a_task();
-        void add_a_task();
+        void consume_a_task_update_idex();
+        void add_a_task_update_idex();
         int treadpoll_add_task(void (*function)(void*),void* arg);
+        int thread_id_counter = 0;
         std::condition_variable thread_pool_conv;//分发任务的时候用的条件变量
         std::mutex thread_pool_mutex;//处理任务队列的时候使用的锁
         int start_thread;

@@ -81,6 +81,7 @@ class myTimer
         size_t get_expire_time();
         bool isValid();
         void clearRqt();
+        int get_fd();
         size_t expired_time;
     private:
         requestData* rqtp;

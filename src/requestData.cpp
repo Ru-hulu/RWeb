@@ -26,12 +26,20 @@ myTimer::myTimer(requestData* rqtp_,size_t timeoutms):rqtp(rqtp_)
     expired_time = tv.tv_sec*1000 + tv.tv_usec/1000 + timeoutms;
     return;
 }
+int myTimer::get_fd()
+{
+    if(rqtp==nullptr)
+    return -1;
+    return rqtp->getFd();
+}
 myTimer::~myTimer()
 {
     //析沟函数中需要释放requestData;
     if(rqtp!=nullptr)
     {
+        std::cout<<"rqtp delete start"<<std::endl;
         delete rqtp;
+        std::cout<<"rqtp delete succ"<<std::endl;
     }    
     return;
 }
@@ -41,7 +49,6 @@ size_t myTimer::get_expire_time()
 }
 void myTimer::clearRqt()
 {
-    std::cout<<"clearRqt "<<(void*)(rqtp)<<std::endl;
     rqtp = nullptr;
 }
 
@@ -80,7 +87,6 @@ void requestData::setTimer(myTimer* tm_)
 }
 void requestData::seperateTimer()
 {
-    std::cout<<"seperate"<<std::endl;
     mtimer->clearRqt();
     mtimer = nullptr;
 }
@@ -205,7 +211,6 @@ int requestData::parse_URI()
     state_handle = STATE_PARSE_HEADERS;
     return PARSE_URI_SUCCESS;
 }
-
 
 int requestData::parse_HEADER()
 {   
@@ -394,18 +399,18 @@ int requestData::analysisRequest()
             perror("Send content failed");
             return ANALYSIS_ERROR;
         }
-        std::cout << "content size ==" << content.size() << std::endl;
-        std::vector<char> data(content.begin(), content.end());//将请求体内容编码
+        std::cout << "content size == " << content.size() << std::endl;
 
         std::ofstream t_f;
         std::unique_lock<std::mutex> nqm(f_n_mtx);
         f_p_n++;
         nqm.unlock();
-        t_f.open("/home/r/Mysoftware/RWeb/src/postfile/"+std::to_string(f_p_n)+".txt");
+        t_f.open("/home/r/Mysoftware/RWeb/postfile/"+std::to_string(f_p_n)+".txt");
         if(t_f.is_open())
         {
             t_f<<content;
             t_f.close();
+            std::cout<<"write success."<<std::endl;
         }
         return ANALYSIS_SUCCESS;
     }
@@ -428,6 +433,8 @@ int requestData::analysisRequest()
         else
             filetype = getMime(file_name.substr(dot_pos)).c_str();
         //解析GET需要访问的文件类型是什么
+        file_name = "/home/r/Mysoftware/RWeb/index.html";
+        std::cout<<file_name<<std::endl;
         struct stat sbuf;
         if (stat(file_name.c_str(), &sbuf) < 0)//这个函数的作用是获取一个文件的状态信息
         {
@@ -468,19 +475,25 @@ int requestData::analysisRequest()
 }
 void requestData::handlerequest()
 {
+    std::cout<<"now start handlerequest"<<std::endl;
     bool isError = false;
     char buf[MAX_BUFF];
     while(true)
     {
+            int stat_f  = fcntl(fd,F_GETFL,0);
+            std::cout<<"This fd is "<<fd<<std::endl;
             size_t r = read_n(fd,buf,MAX_BUFF);
+            std::cout<<"read over "<<fd<<std::endl;
             if(r<0)
             {
                 isError = true;
+                std::cout<<"read_n failed"<<std::endl;
                 break;
                 //如果读的过程中出错了，那么直接删除这个连接
             }
             else if(errno==EAGAIN&&r==0)
             {
+                std::cout<<"again"<<std::endl;
                 if(readagaintime>=AGAIN_MAX_TIMES)
                 {
                     //当前的连接出错，直接作废。
@@ -490,6 +503,7 @@ void requestData::handlerequest()
                 {
                     //等待下一次触发,content不清空
                     readagaintime++;
+                    std::cout<<"read_n again"<<std::endl;
                 }
                 break;
             }
@@ -498,6 +512,7 @@ void requestData::handlerequest()
             content += now_read;
             if(state_handle==STATE_PARSE_URI)
             {
+                std::cout<<"handlerequest: Start parse_URI"<<std::endl;
                 int st = parse_URI();
                 if(st==PARSE_URI_AGAIN)
                 {//提示当前的数据还不够完整，需要再读数据
@@ -512,6 +527,7 @@ void requestData::handlerequest()
             }//URI已经解析成功
             if(state_handle==STATE_PARSE_HEADERS)
             {
+                std::cout<<"handlerequest: Start parse_HEADER"<<std::endl;
                 int st = parse_HEADER();
                 if(st == PARSE_HEADER_AGAIN)
                 {//提示当前的数据还不够完整，需要再读数据
@@ -545,12 +561,26 @@ void requestData::handlerequest()
             }
             if(state_handle == STATE_ANALYSIS)
             {
+                std::cout<<"handlerequest: Start analysisRequest"<<std::endl;
                 int a_ret = analysisRequest();//这里说明需要处理的数据已经全部在content里面了，
+                if(a_ret == ANALYSIS_SUCCESS)
+                {
+                    std::cout<<"handlerequest: Finish analysisRequest"<<std::endl;
+                    isError = false;
+                }
+                else
+                {
+                    std::cout<<"handlerequest: Fail analysisRequest"<<std::endl;
+                    isError = true;
+                }
+                break;                    
             }
+
         }
         if(isError)
         {
             delete this;
+            std::cout<<"isError"<<std::endl;
             return;
         }
         if(state_handle==STATE_FINISH)
@@ -569,8 +599,9 @@ void requestData::handlerequest()
 
         myTimer* tm = new myTimer(this,500);
         mtimer = tm;
-        std::unique_lock<std::mutex>(mutex_timer_q);
+        std::unique_lock<std::mutex>llkk(mutex_timer_q);
         Prio_timer_queue.push(tm);
+        llkk.unlock();
         //上述的功能应该已经处理好了，接下来应该是连接保留的工作
 
         int ev_id = EPOLLIN|EPOLLONESHOT|EPOLLET;

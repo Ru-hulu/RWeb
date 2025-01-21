@@ -63,7 +63,8 @@ int socket_bind_listen(int port)
 void HandleExpire()
 {
     std::lock_guard<std::mutex> lckg(mutex_timer_q);
-    size_t exp_t = 0;
+    size_t exp_t = 0;//已经超时的计时器数量
+    size_t exp_c = 0;//长时间没有消息的连接数量
     while(Prio_timer_queue.size())
     {
         myTimer* tt = Prio_timer_queue.top();
@@ -73,12 +74,17 @@ void HandleExpire()
         }
         else
         {
-            exp_t+=1;
+            std::cout<<"Start delete one, fd is "<< tt->get_fd()
+            <<std::endl;
+            if(tt->get_fd()<0) exp_t+=1;
+            else exp_c+=1;
             Prio_timer_queue.pop();
             delete tt;
+            std::cout<<"Success delete one"<<std::endl;
         }
     }
-    std::cout<<"Expire connections number is "<<exp_t<<std::endl;
+    std::cout<<"Expire connections / timer "
+    <<exp_c<<" "<<exp_t<<std::endl;
 }
 const int PORT = 8888;
 const std::string PATH = "/";
@@ -86,6 +92,7 @@ const int THREAD_NUM = 4;
 const int QSIZE = 1024;
 const uint32_t TIMEOUT = 500;
 const uint32_t MAXQ = 500;
+//主线程中的函数
 void AcceptNewConnection(int listen_fd,int epoll_fd,ThreadPool* tp_)
 {
     sockaddr_in sk;
@@ -128,7 +135,7 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         epoll_event e = events_get[i];
         requestData* rqt_ = reinterpret_cast<requestData*>(e.data.ptr);
         int happen_fd = rqt_->getFd();
-        std::cout<<"happen_fd "<<happen_fd<<"listen_fd "<<listen_fd<<std::endl;
+        std::cout<<"happen_fd "<<happen_fd<<" listen_fd "<<listen_fd<<std::endl;
         if(happen_fd == listen_fd)
         {
             std::cout<<"A new conection arrives!"<<std::endl;
@@ -141,7 +148,7 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         }        //有一方挂起、连接出错、触发事件，但是没有可读数据的时候。
         else//正常触发,需要找一个线程来处理
         {
-            std::cout<<"A new service request arrives!"<<std::endl;            
+            std::cout<<"A new service request arrives!"<<std::endl;
             rqt_->seperateTimer();
             tp->treadpoll_add_task(myHandlefunc,reinterpret_cast<void*>(rqt_));
         }
@@ -162,6 +169,7 @@ int main(int argc, char** argv)
         return 1;
     }
     requestData* rqt_data = new requestData(listen_fd,epoll_fd);
+    //监听端口是不挂载计时器的。
     uint32_t eve_id = EPOLLIN|EPOLLET;
     epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_data),listen_fd,eve_id);
     ThreadPool tp(THREAD_NUM,QSIZE);

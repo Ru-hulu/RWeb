@@ -35,7 +35,7 @@ ssize_t read_n(int fd_,void* bf,size_t n)
     char* np = reinterpret_cast<char*>(bf);
     while(nleft>0)
     {
-        size_t r;
+        ssize_t r;
         r = read(fd_,np,nleft);
         if(r<0)
         {   //这说明已经发生错误了

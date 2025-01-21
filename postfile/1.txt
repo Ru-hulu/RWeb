@@ -1,0 +1,7 @@
+--------------------------35c09343e90c2384
+Content-Disposition: form-data; name="file"; filename="tst.txt"
+Content-Type: text/plain
+
+123123123
+
+--------------------------35c09343e90c2384--
