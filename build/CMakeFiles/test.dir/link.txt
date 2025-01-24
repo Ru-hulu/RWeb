@@ -1,0 +1,1 @@
+/usr/bin/c++   -g -Wall -g   CMakeFiles/test.dir/src/main.cpp.o CMakeFiles/test.dir/src/requestData.cpp.o CMakeFiles/test.dir/src/util.cpp.o CMakeFiles/test.dir/src/epoll.cpp.o CMakeFiles/test.dir/src/ThreadPool.cpp.o  -o test  -lpthread 

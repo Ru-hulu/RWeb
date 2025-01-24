@@ -13,6 +13,7 @@ const int THREADPOOL_QUEUE_FULL = -3;
 const int THREADPOOL_SHUTDOWN = -4;
 const int THREADPOOL_THREAD_FAILURE = -5;
 const int THREADPOOL_GRACEFUL = 1;
+const int THREADPOOL_CAPACITY = 4;
 
 struct threadpoll_task_t
 {

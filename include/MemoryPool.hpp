@@ -40,7 +40,7 @@ namespace MemoryManager
     {
         //先向内存池获得空间
         T* p = reinterpret_cast<T*>(use_Memory(sizeof(T)));
-        // std::cout<<sizeof(T)<<std::endl;
+        //std::cout<<sizeof(T)<<std::endl;
         if(p!=nullptr)
         {
             new(p) T(std::forward<Args>(args)...);//完美转发
