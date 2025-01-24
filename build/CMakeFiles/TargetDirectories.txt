@@ -1,3 +1,0 @@
-/home/r/Mysoftware/RWeb/build/CMakeFiles/rebuild_cache.dir
-/home/r/Mysoftware/RWeb/build/CMakeFiles/edit_cache.dir
-/home/r/Mysoftware/RWeb/build/CMakeFiles/test.dir

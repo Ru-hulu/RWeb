@@ -7,7 +7,6 @@ include_directories(
     include)
 set(
     BUILDCPP
-    src/MemoryPool.cpp
     src/requestData.cpp
     src/ThreadPool.cpp
     src/epoll.cpp

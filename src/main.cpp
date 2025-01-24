@@ -1,6 +1,7 @@
 #include"epoll.hpp"
 #include "requestData.hpp"
 #include "ThreadPool.hpp"
+#include "MemoryPool.hpp"
 #include "util.hpp"
 #include<sys/socket.h>
 #include<netinet/in.h>
@@ -77,7 +78,7 @@ void HandleExpire()
             if(tt->get_fd()<0) exp_t+=1;
             else exp_c+=1;
             Prio_timer_queue.pop();
-            delete tt;
+            MemoryManager::deleteElement<myTimer>(tt);
         }
     }
     //std::cout<<"Expire connections / timer "
@@ -102,7 +103,7 @@ void AcceptNewConnection(int listen_fd,int epoll_fd,ThreadPool* tp_)
         {
             continue;
         }
-        requestData* rqt_ = new requestData(acc_fd,epoll_fd);
+        requestData* rqt_ = MemoryManager::newElement<requestData>(acc_fd,epoll_fd);
         uint32_t ev_id = EPOLLIN|EPOLLET|EPOLLONESHOT;
         int rt = epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_),acc_fd,ev_id);
         if(rt<0)
@@ -110,7 +111,7 @@ void AcceptNewConnection(int listen_fd,int epoll_fd,ThreadPool* tp_)
             delete rqt_;
             continue;
         }
-        myTimer* tm = new myTimer(rqt_,TIMEOUT);
+        myTimer* tm = MemoryManager::newElement<myTimer>(rqt_,TIMEOUT);        
         rqt_->setTimer(tm);  
         std::unique_lock<std::mutex>lock_timer_q(mutex_timer_q);
         Prio_timer_queue.push(tm);
@@ -138,7 +139,7 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         }
         else if((e.events & EPOLLHUP)||(e.events & EPOLLERR) || !(e.events & EPOLLIN))
         {
-            delete rqt_;//epoll会删除这个链接
+            MemoryManager::deleteElement<requestData>(rqt_);//epoll会删除这个链接
             continue;
         }        //有一方挂起、连接出错、触发事件，但是没有可读数据的时候。
         else//正常触发,需要找一个线程来处理
@@ -151,6 +152,7 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
 }
 int main(int argc, char** argv)
 {
+    MemoryManager::Initallpool();//初始化内存池
     int epoll_fd = epoll_init();
     int listen_fd = socket_bind_listen(PORT);
     if(listen_fd<0)
@@ -163,7 +165,7 @@ int main(int argc, char** argv)
         //std::cout<<"socketNonBlock failed!!!"<<std::endl;
         return 1;
     }
-    requestData* rqt_data = new requestData(listen_fd,epoll_fd);
+    requestData* rqt_data = MemoryManager::newElement<requestData>(listen_fd,epoll_fd);
     //监听端口是不挂载计时器的。
     uint32_t eve_id = EPOLLIN|EPOLLET;
     epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_data),listen_fd,eve_id);
@@ -185,5 +187,6 @@ int main(int argc, char** argv)
         //判定如果是连接事件，处理新的连接
         //如果不是连接事件，就用线程池分配给线程处理
     }
+    MemoryManager::deleteElement<requestData>(rqt_data);
     return 1;
 }

@@ -1,5 +1,14 @@
 #include"ThreadPool.hpp"
-
+#include"MemoryPool.hpp"
+Thread_Pack::Thread_Pack(int thread_id_)
+{
+    thread_id = thread_id_;
+    thread_c = nullptr;
+}
+Thread_Pack::~Thread_Pack()
+{
+    pthread_join(*thread_c,NULL);
+}
 //每一个线程都需要执行的函数，用来处理连接后的相关业务
 static void *threadpool_thread(void *threadpool)
 {
@@ -8,7 +17,7 @@ static void *threadpool_thread(void *threadpool)
     std::unique_lock<std::mutex>lg(pool->thread_pool_mutex);
     this_thread_id = pool->thread_id_counter;
     pool->thread_id_counter++;
-    threadpoll_task_t tk;
+    Task_Function_Arg* tk;
     for(;;)
     {
         // 没有与参数列表匹配的 重载函数 "std::condition_variable::wait" 实例
@@ -30,7 +39,7 @@ static void *threadpool_thread(void *threadpool)
             lg.unlock();
         }
         //std::cout<<"Thread "<<this_thread_id<<" start consuming a task"<<std::endl;
-        (*tk.function)(tk.arg);
+        (*(tk->function))(tk->arg);
         //std::cout<<"Thread "<<this_thread_id<<" finish a task"<<std::endl;
     }
     pool->start_thread--;
@@ -56,8 +65,16 @@ int DestroyThreadP(ThreadPool* thr_p)
 ThreadPool::ThreadPool(int num_thread,int queue_size_)
 {
     queue_size = queue_size_;
-    task_queue = new threadpoll_task_t[queue_size_];
-    all_thr = new pthread_t[num_thread];
+    for(int i=0;i<queue_size;i++)
+    {
+        task_queue.push_back(
+        MemoryManager::newElement<Task_Function_Arg>());
+    }
+    for(int i=0;i<num_thread;i++)
+    {
+        all_thr.push_back(
+        MemoryManager::newElement<Thread_Pack>(i));
+    }
     head = 0;tail = 0;
     task_wait_count = 0;
     shutdown = false;
@@ -83,8 +100,8 @@ int ThreadPool::treadpoll_add_task(void (*function)(void*),void* arg)
         return -1;
     }
     std::unique_lock<std::mutex> unl(thread_pool_mutex);
-    task_queue[tail].function = function;
-    task_queue[tail].arg = arg;
+    task_queue[tail]->function = function;
+    task_queue[tail]->arg = arg;
     add_a_task_update_idex();
     unl.unlock();
     thread_pool_conv.notify_one();
@@ -94,7 +111,7 @@ bool ThreadPool::InitialPool()
 {
     for(int i=0;i<THREADPOOL_CAPACITY;i++)
     {
-        if(pthread_create(&all_thr[i],NULL,threadpool_thread,this)!=0)
+        if(pthread_create(all_thr[i]->thread_c,NULL,threadpool_thread,this)!=0)
         {
             shutdown = true;
             return false;
@@ -108,12 +125,18 @@ bool ThreadPool::InitialPool()
 ThreadPool::~ThreadPool()
 {
     std::unique_lock<std::mutex>mt(thread_pool_mutex);
-    thread_pool_conv.notify_all();
     mt.unlock();
-    for(int i=0;i<start_thread;i++)
-    pthread_join(all_thr[i],NULL);
-    delete[] task_queue;
-    delete[] all_thr;
+    thread_pool_conv.notify_all();
+    for(int i=0;i<all_thr.size();i++)
+    {
+        MemoryManager::deleteElement<Thread_Pack>(all_thr[i]);
+        //线程的join在析构函数中做了
+    }
+    for(int i=0;i<task_queue.size();i++)
+    {
+        MemoryManager::deleteElement<Task_Function_Arg>(
+        task_queue[i]);        
+    }
     std::cout<<"ThreadPool is deleted"<<std::endl;
     return;
 }

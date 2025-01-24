@@ -1,4 +1,5 @@
 #include"requestData.hpp"
+#include"MemoryPool.hpp"
 #include<unistd.h>
 #include<sys/stat.h>
 #include <sys/mman.h>
@@ -597,7 +598,7 @@ void requestData::handlerequest()
                 return;
             }
         }
-        myTimer* tm = new myTimer(this,500);
+        myTimer* tm = MemoryManager::newElement<myTimer>(this,500);
         mtimer = tm;
         std::unique_lock<std::mutex>llkk(mutex_timer_q);
         Prio_timer_queue.push(tm);
