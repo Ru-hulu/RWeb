@@ -144,7 +144,7 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         int happen_fd = rqt_->getFd();
         if(happen_fd == listen_fd)
         { 
-            std::cout<<"A new conection arrives!"<<std::endl;
+            // std::cout<<"A new conection arrives!"<<std::endl;
             AcceptNewConnection(listen_fd,epoll_fd,tp);
         }
         else if((e.events & EPOLLHUP)||(e.events & EPOLLERR) || !(e.events & EPOLLIN))

@@ -118,10 +118,6 @@ int ThreadPool::treadpoll_add_task(void (*function)(void*),void* arg)
     std::unique_lock<std::mutex> unl(thread_pool_mutex);
     task_queue[tail]->function = function;
     task_queue[tail]->arg = arg;
-    if(task_queue[tail]->arg!=arg||task_queue[tail]->function!=function)
-    std::cout<<"he";
-    std::cout<<tail<<"In the main thread, rqt is "<<task_queue[tail]->function
-    <<" "<<task_queue[tail]->arg<<std::endl;
     add_a_task_update_idex();
     unl.unlock();
     thread_pool_conv.notify_one();

@@ -133,7 +133,7 @@ int requestData::parse_URI()
     std::string &str = content;
     // 读到完整的请求行再开始解析请求
     int pos = str.find('\r', 0);
-    std::cout<<"content size is "<<content.size()<<std::endl;
+    // std::cout<<"content size is "<<content.size()<<std::endl;
     if (pos < 0)
     {
         return PARSE_URI_AGAIN;
@@ -482,17 +482,17 @@ int requestData::analysisRequest()
 }
 void requestData::handlerequest()
 {
-    std::cout<<"this is "<<this<<std::endl;
+    // std::cout<<"this is "<<this<<std::endl;
     bool isError = false;
     char buf[MAX_BUFF];
     while(true)
     {
             int stat_f  = fcntl(fd,F_GETFL,0);
-            size_t r = read_n(fd,buf,MAX_BUFF);
+            ssize_t r = read_n(fd,buf,MAX_BUFF);
             if(r<0)
             {
                 isError = true;
-                //std::cout<<"read_n failed"<<std::endl;
+                std::cout<<"read_n failed"<<std::endl;
                 break;
                 //如果读的过程中出错了，那么直接删除这个连接
             }
@@ -581,7 +581,7 @@ void requestData::handlerequest()
                 int a_ret = analysisRequest();//这里说明需要处理的数据已经全部在content里面了，
                 if(a_ret == ANALYSIS_SUCCESS)
                 {
-                    std::cout<<"handlerequest: Success analysisRequest"<<std::endl;
+                    // std::cout<<"handlerequest: Success analysisRequest"<<std::endl;
                     state_handle=STATE_FINISH;
                 }
                 else
@@ -628,7 +628,7 @@ void requestData::handlerequest()
         int ret = epoll_mod(epoll_fd,this,fd,ev_id);
         if(ret<0)
         {
-            std::cout<<"this is deleted "<<std::endl;
+            // std::cout<<"this is deleted "<<std::endl;
             MemoryManager::deleteElement<requestData>(this);
             return;
         }
