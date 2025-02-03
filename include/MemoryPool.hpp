@@ -7,7 +7,7 @@
 struct Slot
 {
     Slot* next;
-};
+}; //64位系统sizeof(Slot)=8
 namespace MemoryManager
 {
     class MemoryPool

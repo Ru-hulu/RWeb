@@ -38,7 +38,11 @@ myTimer::~myTimer()
     //析沟函数中需要释放requestData;
     if(rqtp!=nullptr)
     {
-        delete rqtp;
+        // if(rqtp->in_q)
+        // while(1)
+        // std::cout<<"her1";
+        std::cout<<"FD "<<rqtp->getFd()<<" is freed"<<std::endl;
+        MemoryManager::deleteElement<requestData>(rqtp);
     }    
     return;
 }
@@ -76,6 +80,7 @@ requestData::~requestData()
     int ev_id = EPOLLIN|EPOLLET|EPOLLONESHOT;
     epoll_del(epoll_fd,fd,ev_id);//删除epoll_fd 与 fd的关联
     close(fd);//关闭文件描述符
+    // std::cout<<"now free fd is "<<fd<<std::endl;
     if(mtimer!=nullptr)
     {
         seperateTimer();
@@ -128,6 +133,7 @@ int requestData::parse_URI()
     std::string &str = content;
     // 读到完整的请求行再开始解析请求
     int pos = str.find('\r', 0);
+    std::cout<<"content size is "<<content.size()<<std::endl;
     if (pos < 0)
     {
         return PARSE_URI_AGAIN;
@@ -476,7 +482,7 @@ int requestData::analysisRequest()
 }
 void requestData::handlerequest()
 {
-    //std::cout<<"Fd "<<fd<<" start handlerequest"<<std::endl;
+    std::cout<<"this is "<<this<<std::endl;
     bool isError = false;
     char buf[MAX_BUFF];
     while(true)
@@ -506,12 +512,20 @@ void requestData::handlerequest()
                 }
                 break;
             }
+            else if(r==0&&errno==0)
+            {
+                isError = true;
+                break;//对端关闭链接。
+                
+            }
+            // std::cout<<"r is "<<r<<"errno is "<<errno<<std::endl;
             //如果读到了数据：
             std::string now_read(buf,buf+r);
             content += now_read;
             if(state_handle==STATE_PARSE_URI)
             {
                 int st = parse_URI();
+                // std::cout<<"parse_URI is"<<st<<std::endl;
                 if(st==PARSE_URI_AGAIN)
                 {//提示当前的数据还不够完整，需要再读数据
                     break;
@@ -522,11 +536,13 @@ void requestData::handlerequest()
                     //std::cout<<"PARSE_URI_ERROR"<<std::endl;
                     break;
                 }
-                else if(st == PARSE_URI_SUCCESS)state_handle = STATE_PARSE_HEADERS;
+                else if(st == PARSE_URI_SUCCESS)
+                state_handle = STATE_PARSE_HEADERS;
             }//URI已经解析成功
             if(state_handle==STATE_PARSE_HEADERS)
             {
                 int st = parse_HEADER();
+                // std::cout<<"Now method is "<< method <<std::endl;
                 if(st == PARSE_HEADER_AGAIN)
                 {//提示当前的数据还不够完整，需要再读数据
                     break;
@@ -556,7 +572,7 @@ void requestData::handlerequest()
                 }
                 int con_size = std::stoi(header_map["Content-Length"]);
                 if(content.size()<con_size)
-                continue;
+                continue;//这个逻辑不是很封闭。需要改进。
                 state_handle = STATE_ANALYSIS;
             }
             if(state_handle == STATE_ANALYSIS)
@@ -565,22 +581,23 @@ void requestData::handlerequest()
                 int a_ret = analysisRequest();//这里说明需要处理的数据已经全部在content里面了，
                 if(a_ret == ANALYSIS_SUCCESS)
                 {
-                    //std::cout<<"handlerequest: Finish analysisRequest"<<std::endl;
+                    std::cout<<"handlerequest: Success analysisRequest"<<std::endl;
                     state_handle=STATE_FINISH;
                 }
                 else
                 {
-                    //std::cout<<"handlerequest: Fail analysisRequest"<<std::endl;
+                    std::cout<<"handlerequest: Fail analysisRequest"<<std::endl;
                     isError = true;
                 }
                 break;                    
             }
 
     }
+    //每次都是parse—url-again 然后break到这里重新设定epoll
         if(isError)
         {
             //std::cout<<"handlerequest Error"<<std::endl;
-            delete this;
+            MemoryManager::deleteElement<requestData>(this);
             return;
         }
         if(state_handle==STATE_FINISH)
@@ -594,11 +611,13 @@ void requestData::handlerequest()
             else
             {
                 //std::cout<<"now is not kept alive"<<std::endl;
-                delete this;
+                MemoryManager::deleteElement<requestData>(this);
                 return;
             }
         }
         myTimer* tm = MemoryManager::newElement<myTimer>(this,500);
+        // myTimer* tm = new myTimer(this,500);
+
         mtimer = tm;
         std::unique_lock<std::mutex>llkk(mutex_timer_q);
         Prio_timer_queue.push(tm);
@@ -609,7 +628,8 @@ void requestData::handlerequest()
         int ret = epoll_mod(epoll_fd,this,fd,ev_id);
         if(ret<0)
         {
-            delete this;
+            std::cout<<"this is deleted "<<std::endl;
+            MemoryManager::deleteElement<requestData>(this);
             return;
         }
 }

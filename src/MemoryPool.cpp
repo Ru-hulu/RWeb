@@ -2,7 +2,7 @@
 namespace MemoryManager
 {
 
-    MemoryPool allpools[64];
+    MemoryPool allpools[64];//8-512
     MemoryPool& getMemoryPool(size_t s)
     {
         int mid = ((s+7) >> 3) -1;
@@ -47,7 +47,7 @@ namespace MemoryManager
     MemoryPool::MemoryPool(){};
     void MemoryPool::init(size_t s)
     {
-        slot_size = s;
+        slot_size = s;//8-512
         currentBlock_ = nullptr;
         currentSlot_ = nullptr;
         freeslot_ = nullptr;
@@ -56,36 +56,50 @@ namespace MemoryManager
     size_t MemoryPool::Caculatepadding(size_t align,char* nowp)
     {
         size_t result = reinterpret_cast<size_t>(nowp);
-        return (align - result)%align;
+        return (align - result)%align;//涉及无符号数对负数处理
     }
     //现在需要创造一个新的Block
     Slot* MemoryPool::createnewBlock()
     {
-        char* nowBlock = reinterpret_cast<char*>(operator new(BlockSize));
+        char* nowBlock = nullptr;
+        // std::cout<<"a new block is created"<<std::endl;
+        try
+        {
+            nowBlock = reinterpret_cast<char*>(operator new(BlockSize));
+        }
+        catch(const std::bad_alloc & e)
+        {
+            std::cout<<"new failed "<<e.what()<<std::endl;
+            return nullptr;
+        }
         //先分配得到空间
         reinterpret_cast<Slot*>(nowBlock)->next = currentBlock_;
         currentBlock_ = reinterpret_cast<Slot*>(nowBlock);
         char* body = nowBlock + sizeof(Slot);
-        size_t paddingsize = Caculatepadding(sizeof(slot_size),body);
+        size_t paddingsize = Caculatepadding(slot_size,body);
         currentSlot_ = reinterpret_cast<Slot*>(body + paddingsize);
+        //保证currentSlot_的地址是slot_size倍数
         begin_slot = currentSlot_;
         lastslot_ = reinterpret_cast<Slot*>(nowBlock + BlockSize - slot_size + 1);
         Slot* nowslot = currentSlot_;
         currentSlot_ += (slot_size>>3);    
+        nowslot->next = nullptr;
+        // std::cout<<"now slot is "<<nowslot<<" end slot is "<<lastslot_<<std::endl;
         return nowslot;
         //Block链表维护好
     }
     //这说明free链表中已经没有可以使用的内存了
     Slot* MemoryPool::nofree_solve()
     {
-                //std::cout<<"slotsize is "<<slot_size<<std::endl;
-                //std::cout<<"currentslot is "<<currentSlot_<<std::endl;
-                //std::cout<<"freeslot is "<<freeslot_<<std::endl;
-                //std::cout<<"lastslot is "<<lastslot_<<std::endl;
-                //std::cout<<"begin_slot is "<<begin_slot<<std::endl;
+                // std::cout<<"slotsize is "<<slot_size<<std::endl;
+                // std::cout<<"currentslot is "<<currentSlot_<<std::endl;
+                // std::cout<<"freeslot is "<<freeslot_<<std::endl;
+                // std::cout<<"lastslot is "<<lastslot_<<std::endl;
+                // std::cout<<"begin_slot is "<<begin_slot<<std::endl;
         std::unique_lock<std::mutex> this_l(nofree_mutex); 
-        if(freeslot_<lastslot_)//说明Block中还有空间可以用
+        if(currentSlot_<lastslot_)//说明Block中还有空间可以用
         {
+                // std::cout<<"currentSlot_ is "<<currentSlot_<<"lastslot_ is "<<lastslot_<<std::endl;
                 Slot* nowslot = currentSlot_;
                 currentSlot_ += (slot_size>>3);
                 return nowslot;
@@ -96,16 +110,15 @@ namespace MemoryManager
 
     Slot* MemoryPool::allocate()
     {
+        std::unique_lock<std::mutex> this_g(free_mutex);
         if(freeslot_!=nullptr)
         {
-            std::lock_guard<std::mutex> this_g(free_mutex);
-            if(freeslot_!=nullptr)
-            {
-                Slot* nowslot = freeslot_;
-                freeslot_ = freeslot_->next;
-                return nowslot;
-            }
+            Slot* nowslot = freeslot_;
+            freeslot_ = freeslot_->next;
+            nowslot->next = nullptr;
+            return nowslot;
         }
+        this_g.unlock();
         return nofree_solve();
     }
 

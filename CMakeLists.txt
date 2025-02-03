@@ -14,5 +14,6 @@ set(
     src/main.cpp
     src/util.cpp
 )
+# add_executable(test src/easy.cpp)
 add_executable(test ${BUILDCPP})
 target_link_libraries(test Threads::Threads)

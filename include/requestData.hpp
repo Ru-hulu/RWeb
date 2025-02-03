@@ -56,6 +56,8 @@ class requestData
         int analysisRequest();
         void reset_data();
         std::string getMime(std::string t);
+        bool in_q = false;
+        std::mutex inq;
         void handleError(int fd, int err_num, std::string short_msg);
     private:
         int fd;

@@ -86,6 +86,7 @@
         "netfwd": "cpp",
         "socket": "cpp",
         "timer": "cpp",
-        "queue": "cpp"
+        "queue": "cpp",
+        "easy": "cpp"
     }
 }

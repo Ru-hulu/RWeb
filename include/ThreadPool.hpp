@@ -34,6 +34,7 @@ class Thread_Pack
 class ThreadPool
 {
     public:
+        ssize_t now_all_con = 0;
         ThreadPool(int num_thread,int que_size);
         ~ThreadPool();
         bool InitialPool();

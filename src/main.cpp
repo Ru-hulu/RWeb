@@ -86,10 +86,15 @@ void HandleExpire()
 }
 const int PORT = 8888;
 const std::string PATH = "/";
-const int QSIZE = 1024;
+const int QSIZE = 400;
 const uint32_t TIMEOUT = 500;
 const uint32_t MAXQ = 500;
 //主线程中的函数
+//当测试过程中客户端关闭链接的时候。会出现
+void sigpipe_handler(int signum) {
+    // 可以在这里添加自定义的处理逻辑，如记录日志
+    printf("Received SIGPIPE signal!\n");
+}
 void AcceptNewConnection(int listen_fd,int epoll_fd,ThreadPool* tp_)
 {
     sockaddr_in sk;
@@ -104,14 +109,20 @@ void AcceptNewConnection(int listen_fd,int epoll_fd,ThreadPool* tp_)
             continue;
         }
         requestData* rqt_ = MemoryManager::newElement<requestData>(acc_fd,epoll_fd);
+        if(rqt_==nullptr)
+        std::cout<<"null"<<std::endl;
+        // requestData* rqt_ = new requestData(acc_fd,epoll_fd);
+
         uint32_t ev_id = EPOLLIN|EPOLLET|EPOLLONESHOT;
         int rt = epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_),acc_fd,ev_id);
         if(rt<0)
         {
-            delete rqt_;
+            MemoryManager::deleteElement<requestData>(rqt_);
             continue;
         }
         myTimer* tm = MemoryManager::newElement<myTimer>(rqt_,TIMEOUT);        
+        // myTimer* tm = new myTimer(rqt_,TIMEOUT);        
+        
         rqt_->setTimer(tm);  
         std::unique_lock<std::mutex>lock_timer_q(mutex_timer_q);
         Prio_timer_queue.push(tm);
@@ -131,14 +142,16 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         epoll_event e = events_get[i];
         requestData* rqt_ = reinterpret_cast<requestData*>(e.data.ptr);
         int happen_fd = rqt_->getFd();
-        //std::cout<<"happen_fd "<<happen_fd<<" listen_fd "<<listen_fd<<std::endl;
         if(happen_fd == listen_fd)
         { 
-            //std::cout<<"A new conection arrives!"<<std::endl;
+            std::cout<<"A new conection arrives!"<<std::endl;
             AcceptNewConnection(listen_fd,epoll_fd,tp);
         }
         else if((e.events & EPOLLHUP)||(e.events & EPOLLERR) || !(e.events & EPOLLIN))
         {
+                    // if(rqt_->in_q)
+                    // while(1)
+                    // std::cout<<"her2";
             MemoryManager::deleteElement<requestData>(rqt_);//epoll会删除这个链接
             continue;
         }        //有一方挂起、连接出错、触发事件，但是没有可读数据的时候。
@@ -146,12 +159,19 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         {
             //std::cout<<"A new service request arrives!"<<std::endl;
             rqt_->seperateTimer();
+            if(rqt_==nullptr)
+            {
+                std::cout<<"here rqt_ is null"<<std::endl;//不会发生
+            }
             tp->treadpoll_add_task(myHandlefunc,reinterpret_cast<void*>(rqt_));
+            //这里的业务逻辑没有封闭，如果当前任务队列已经满了，那么rqt不被添加到任务队列中，会怎样呢？
+            //后续还会有epoll_wait的响应吗？
         }
     }
 }
 int main(int argc, char** argv)
 {
+    signal(SIGPIPE, sigpipe_handler);
     MemoryManager::Initallpool();//初始化内存池
     int epoll_fd = epoll_init();
     int listen_fd = socket_bind_listen(PORT);
@@ -166,6 +186,7 @@ int main(int argc, char** argv)
         return 1;
     }
     requestData* rqt_data = MemoryManager::newElement<requestData>(listen_fd,epoll_fd);
+    // requestData* rqt_data = new requestData(listen_fd,epoll_fd);
     //监听端口是不挂载计时器的。
     uint32_t eve_id = EPOLLIN|EPOLLET;
     epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_data),listen_fd,eve_id);
