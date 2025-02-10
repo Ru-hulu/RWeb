@@ -13,9 +13,7 @@ set(
     src/epoll.cpp
     src/main.cpp
     src/util.cpp
-    src/AsyncLogging.cpp
-    src/Logger.cpp
-    )
-# add_executable(test src/easy.cpp)
-add_executable(test ${BUILDCPP})
-target_link_libraries(test Threads::Threads)
+)
+add_executable(test src/easy.cpp)
+# add_executable(test ${BUILDCPP})
+# target_link_libraries(test Threads::Threads)

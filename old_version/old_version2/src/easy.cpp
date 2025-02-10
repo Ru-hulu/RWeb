@@ -25,15 +25,6 @@ class A
 
 epoll_event* all_eve;
 int main() {
-std::cout<<__FILE__<<std::endl;
-std::cout<<__LINE__<<std::endl;
-std::cout<<__func__<<std::endl;
-char datc[10]={'1','1','1','1','1','1','1','1','2','\0'};
-std::cout<<strlen(datc);
-char da[20];
-sprintf(da,"%s",datc);
-printf("%s",da);
-return 1;
 char* a;
 char b= 'c';
 a = &b;
