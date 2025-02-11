@@ -23,7 +23,7 @@ class AsyncLogging
     public:
         typedef std::unique_ptr<Buff> BuffPtr;
         AsyncLogging();//log时间初始化,current初始化
-        void ThreadWriteLog();//真正将数据写入到log中的线程函数
+        static void* ThreadWriteLog(void* arg_);//真正将数据写入到log中的线程函数
         void BuffWriteFunc(char*,int);//将缓冲区写入的函数
         void rollFd();//如果日志文件太大或者时间很长，需要更新日志文件。
         bool update_check();
@@ -31,6 +31,7 @@ class AsyncLogging
         void set_full();
         bool LogExpired();//看当前Log的是否已经存在太长时间， 如果时间太长就创建新的log.
     private:
+        pthread_t* write_thread;
         BuffPtr currbuff;
         BuffPtr nextbuff;
         time_t log_init_t;

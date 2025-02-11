@@ -8,10 +8,13 @@
 #include<string.h>
 #include<queue>
 #include<vector>
+#include<AsyncLogging.hpp>
+#include<Logger.hpp>
 std::mutex mutex_timer_q;
 std::mutex f_n_mtx;
 size_t f_p_n = 0;
 size_t connection_num = 0;
+AsyncLogging* async = nullptr;
 bool timecmp::operator()(const myTimer* a,const myTimer* b)const
 {
     return ((a)->expired_time >= (b)->expired_time); 
@@ -182,8 +185,14 @@ int main(int argc, char** argv)
         //std::cout<<"socketNonBlock failed!!!"<<std::endl;
         return 1;
     }
+    async = new AsyncLogging();
+    if(async==nullptr)
+    {
+        std::cout<<"Log system initial failed!!"<<std::endl;
+    }
+    Log::set_level(Log::INFO);
+    LOG_INFO<<"Test log system !!"<<std::endl;
     requestData* rqt_data = MemoryManager::newElement<requestData>(listen_fd,epoll_fd);
-    // requestData* rqt_data = new requestData(listen_fd,epoll_fd);
     //监听端口是不挂载计时器的。
     uint32_t eve_id = EPOLLIN|EPOLLET;
     epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_data),listen_fd,eve_id);

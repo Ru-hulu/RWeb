@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include<time.h>
 #include<assert.h>
+#include<memory>
 inline int Buff::avail()
 {
     return (1024-(cur_-buff_));
@@ -26,6 +27,8 @@ AsyncLogging::AsyncLogging()
     rollFd();
     currbuff.reset(new Buff());
     nextbuff.reset(new Buff());
+    write_thread  = new pthread_t;
+    pthread_create(write_thread,NULL,ThreadWriteLog,this);
 }
 //更新日志文件以及时间。
 void AsyncLogging::rollFd()
@@ -108,42 +111,43 @@ bool AsyncLogging::LogExpired()
     else if(now_t->tm_hour+24-ini_t->tm_hour>=24)
     return true;
 }
-void AsyncLogging::ThreadWriteLog()
+void* AsyncLogging::ThreadWriteLog(void* arg_)
 {
     BuffPtr Buff1(new Buff());
     BuffPtr Buff2(new Buff());
+    AsyncLogging* arg  = reinterpret_cast<AsyncLogging*>(arg_);
     std::vector<BuffPtr> Buff2Write;
     ssize_t logfile_write = 0;
     for(;;)
     {
         {
-            std::unique_lock<std::mutex> lk(wb_mutex);
-            update_log_file.wait_for(lk,std::chrono::seconds(wait_time),
-            [this](){return update_check();});
-            buffs_.push_back(std::move(currbuff));
-            Buff2Write.swap(buffs_);
-            currbuff = std::move(Buff1);
-            if(nextbuff==nullptr)
+            std::unique_lock<std::mutex> lk(arg->wb_mutex);
+            arg->update_log_file.wait_for(lk,std::chrono::seconds(arg->wait_time),
+            [arg](){return arg->update_check();});
+            arg->buffs_.push_back(std::move(arg->currbuff));
+            Buff2Write.swap(arg->buffs_);
+            arg->currbuff = std::move(Buff1);
+            if(arg->nextbuff==nullptr)
             {
-                nextbuff = std::move(Buff2);
+                arg->nextbuff = std::move(Buff2);
             }
-            set_empty();
+            arg->set_empty();
             lk.unlock();
         }
         if(Buff2Write.size()>25)
         {
             char too_much_d[40];
             sprintf(too_much_d,"To much log data!\n\0");
-            write(log_fd,too_much_d,strlen(too_much_d));
+            write(arg->log_fd,too_much_d,strlen(too_much_d));
             Buff2Write.erase(Buff2Write.begin()+2,Buff2Write.end());
         }
         for(auto &b:Buff2Write)
         {
             ssize_t nw_byte= 1024-b->avail();
             logfile_write += nw_byte;
-            write(log_fd,b->get_buff_(),nw_byte);
+            write(arg->log_fd,b->get_buff_(),nw_byte);
         }
-        if(fsync(log_fd)==-1)
+        if(fsync(arg->log_fd)==-1)
         {
             std::cout<<"fsync(log_fd) error !"<<std::endl;
             abort();
@@ -160,9 +164,9 @@ void AsyncLogging::ThreadWriteLog()
             Buff2Write.pop_back();
             Buff2->reset_cur();
         }
-        if(logw_upbound<=logfile_write||LogExpired())
+        if(arg->logw_upbound<=logfile_write||arg->LogExpired())
         {
-            rollFd();
+            arg->rollFd();
         }
         //对文件描述符检查并且更新
     }
