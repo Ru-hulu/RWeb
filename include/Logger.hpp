@@ -13,17 +13,17 @@ namespace Log
     };
     void DefaultWrite(char*,int);
     void DefaultFlush();
-    void(*CoutFunction)(char*,int) = DefaultWrite;
-    void(*FlushFunction)() = DefaultFlush;
-    //通过这个函数接口设定，可以选择输出到磁盘还是输出到日志文件
-    LogLevel level_ = INFO;//当前日志输出的等级
+    void SetCout(void (*cout_)(char*,int));
     void set_level(LogLevel l);
     LogLevel get_level();
     const int BUFF_SIZE = 1024;
-    class Logger
+    extern LogLevel level_;//当前日志输出的等级
+    extern void(*CoutFunction)(char*,int);
+    extern void(*FlushFunction)();
+    class  Logger
     {
         public:
-            Logger(const char*,int,LogLevel,const char*);
+            Logger(const char*,int,LogLevel);
             class LogStream
             {
                 public:
@@ -54,12 +54,11 @@ namespace Log
     };
 };
 #define LOG_INFO if(Log::get_level()<=Log::INFO) \
-Log::Logger(__FILE__,__LINE__,Log::INFO).stream();
+Log::Logger(__FILE__,__LINE__,Log::INFO).stream()
 #define LOG_WARN if(Log::get_level()<=Log::WARN) \
-Log::Logger(__FILE__,__LINE__,Log::WARN).stream();
+Log::Logger(__FILE__,__LINE__,Log::WARN).stream()
 #define LOG_ERR if(Log::get_level()<=Log::ERR) \
-Log::Logger(__FILE__,__LINE__,Log::ERR).stream();
+Log::Logger(__FILE__,__LINE__,Log::ERR).stream()
 #define LOG_FATAL if(Log::get_level()<=Log::FATAL) \
-Log::Logger(__FILE__,__LINE__,Log::FATAL).stream();
-
+Log::Logger(__FILE__,__LINE__,Log::FATAL).stream()
 #endif

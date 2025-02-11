@@ -3,7 +3,16 @@
 #include<cstring>
 #include<time.h>
 typedef Log::Logger::LogStream LogStream;
-
+namespace Log
+{
+    LogLevel level_ = Log::LogLevel::INFO;
+    void(*CoutFunction)(char*,int) = nullptr;
+    void(*FlushFunction)()=nullptr;
+}
+void Log::SetCout(void (*cout_)(char*,int))
+{
+    CoutFunction = cout_;
+}
 LogStream& Log::Logger::stream()
 {
     return stream_;
@@ -124,8 +133,7 @@ Log::LogLevel Log::get_level()
 {
     return level_;
 }
-Log::Logger::Logger(const char* file_n,int line_n,
-Log::LogLevel l_,const char* func_n)
+Log::Logger::Logger(const char* file_n,int line_n,Log::LogLevel l_)
 {
     set_level(l_);
     time_t tt;
@@ -137,5 +145,5 @@ Log::LogLevel l_,const char* func_n)
            st->tm_year + 1900, st->tm_mon + 1, st->tm_mday,
            st->tm_hour, st->tm_min, st->tm_sec);
     stream()<<"Time stamp "<<
-    file_n<<"---"<<line_n<<"---"<<func_n<<"---";
+    file_n<<"---"<<line_n<<"---";
 }

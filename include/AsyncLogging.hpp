@@ -14,6 +14,9 @@ class Buff
         void reset_cur();
         void buff_write(char*,int);
         const char * get_buff_(){return buff_;};
+        const char * get_cur(){return cur_;};
+        char get_end(){return *(cur_-1);};//需要保证非空
+        bool isempty(){return (char*)buff_==cur_;};
     private:
         char buff_[1024];
         char* cur_;
@@ -23,6 +26,7 @@ class AsyncLogging
     public:
         typedef std::unique_ptr<Buff> BuffPtr;
         AsyncLogging();//log时间初始化,current初始化
+        ~AsyncLogging();
         static void* ThreadWriteLog(void* arg_);//真正将数据写入到log中的线程函数
         void BuffWriteFunc(char*,int);//将缓冲区写入的函数
         void rollFd();//如果日志文件太大或者时间很长，需要更新日志文件。
@@ -31,6 +35,7 @@ class AsyncLogging
         void set_full();
         bool LogExpired();//看当前Log的是否已经存在太长时间， 如果时间太长就创建新的log.
     private:
+        bool alive = false;
         pthread_t* write_thread;
         BuffPtr currbuff;
         BuffPtr nextbuff;

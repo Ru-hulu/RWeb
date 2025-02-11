@@ -8,8 +8,9 @@
 #include<string.h>
 #include<queue>
 #include<vector>
-#include<AsyncLogging.hpp>
-#include<Logger.hpp>
+#include<functional>
+#include"AsyncLogging.hpp"
+#include"Logger.hpp"
 std::mutex mutex_timer_q;
 std::mutex f_n_mtx;
 size_t f_p_n = 0;
@@ -169,6 +170,10 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         }
     }
 }
+void Outpatch(char* a,int b)
+{
+    async->BuffWriteFunc(a,b);
+}
 int main(int argc, char** argv)
 {
     signal(SIGPIPE, sigpipe_handler);
@@ -191,7 +196,8 @@ int main(int argc, char** argv)
         std::cout<<"Log system initial failed!!"<<std::endl;
     }
     Log::set_level(Log::INFO);
-    LOG_INFO<<"Test log system !!"<<std::endl;
+    Log::SetCout(Outpatch);
+    LOG_INFO<<"Test log system !!\n";
     requestData* rqt_data = MemoryManager::newElement<requestData>(listen_fd,epoll_fd);
     //监听端口是不挂载计时器的。
     uint32_t eve_id = EPOLLIN|EPOLLET;

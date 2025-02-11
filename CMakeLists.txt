@@ -7,14 +7,15 @@ include_directories(
     include)
 set(
     BUILDCPP
-    src/MemoryPool.cpp
-    src/requestData.cpp
-    src/ThreadPool.cpp
-    src/epoll.cpp
-    src/main.cpp
-    src/util.cpp
+    # src/MemoryPool.cpp
+    # src/requestData.cpp
+    # src/ThreadPool.cpp
+    # src/epoll.cpp
+    # src/main.cpp
+    # src/util.cpp
     src/AsyncLogging.cpp
     src/Logger.cpp
+    src/Log_test.cpp
     )
 # add_executable(test src/easy.cpp)
 add_executable(test ${BUILDCPP})

@@ -22,12 +22,19 @@ void Buff::reset_cur()
 {
     cur_ = buff_;
 }
+AsyncLogging::~AsyncLogging()
+{
+    alive = false;
+    pthread_join(*write_thread,NULL);
+    delete write_thread;
+}   
 AsyncLogging::AsyncLogging()
 {
     rollFd();
     currbuff.reset(new Buff());
     nextbuff.reset(new Buff());
     write_thread  = new pthread_t;
+    alive = true;
     pthread_create(write_thread,NULL,ThreadWriteLog,this);
 }
 //更新日志文件以及时间。
@@ -49,11 +56,13 @@ void AsyncLogging::rollFd()
     int sec = st->tm_sec;
     std::string file_name = "/home/r/Mysoftware/RWeb/log/"
         +std::to_string(year)+"-"+std::to_string(moth)+"-"+std::to_string(day)
-    +"-"+std::to_string(hour)+"-"+std::to_string(min)+"-"+std::to_string(sec);
-    log_fd = open(file_name.c_str(),O_RDWR|O_CREAT);
+    +"-"+std::to_string(hour)+"-"+std::to_string(min)+"-"+std::to_string(sec)
+    +".txt";
+    log_fd = open(file_name.c_str(),O_RDWR|O_CREAT,0666);
     if(log_fd<0)
     {
-        std::cout<<"roll_fd failed"<<std::endl;
+        std::cout<<file_name<<std::endl;
+        std::cout<<errno<<std::endl;
         abort();
     }
 }
@@ -109,7 +118,10 @@ bool AsyncLogging::LogExpired()
     struct tm* ini_t= localtime(&log_init_t);
     if(now_t->tm_wday==ini_t->tm_wday)return false;
     else if(now_t->tm_hour+24-ini_t->tm_hour>=24)
-    return true;
+    {
+        std::cout<<"time expired "<<std::endl;
+        return true;
+    }
 }
 void* AsyncLogging::ThreadWriteLog(void* arg_)
 {
@@ -118,7 +130,7 @@ void* AsyncLogging::ThreadWriteLog(void* arg_)
     AsyncLogging* arg  = reinterpret_cast<AsyncLogging*>(arg_);
     std::vector<BuffPtr> Buff2Write;
     ssize_t logfile_write = 0;
-    for(;;)
+    while(arg->alive)
     {
         {
             std::unique_lock<std::mutex> lk(arg->wb_mutex);
@@ -139,7 +151,15 @@ void* AsyncLogging::ThreadWriteLog(void* arg_)
             char too_much_d[40];
             sprintf(too_much_d,"To much log data!\n\0");
             write(arg->log_fd,too_much_d,strlen(too_much_d));
-            Buff2Write.erase(Buff2Write.begin()+2,Buff2Write.end());
+            for(int cctb=1;cctb<Buff2Write.size();cctb++)
+            {
+                if(Buff2Write[cctb]->isempty())continue;
+                if(Buff2Write[cctb]->get_end()=='\n')
+                {
+                    Buff2Write.erase(Buff2Write.begin()+cctb+1,Buff2Write.end());
+                    break;
+                }
+            }
         }
         for(auto &b:Buff2Write)
         {
@@ -167,7 +187,12 @@ void* AsyncLogging::ThreadWriteLog(void* arg_)
         if(arg->logw_upbound<=logfile_write||arg->LogExpired())
         {
             arg->rollFd();
+            logfile_write = 0;
         }
+        Buff2Write.clear();
         //对文件描述符检查并且更新
     }
+    //全部是智能指针，不需要释放
+    pthread_exit(NULL);
+    return NULL;
 }

@@ -87,6 +87,7 @@
         "socket": "cpp",
         "timer": "cpp",
         "queue": "cpp",
-        "easy": "cpp"
+        "easy": "cpp",
+        "__config": "cpp"
     }
 }
