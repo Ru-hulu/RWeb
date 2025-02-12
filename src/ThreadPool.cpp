@@ -112,7 +112,6 @@ int ThreadPool::treadpoll_add_task(void (*function)(void*),void* arg)
     {
         //std::cout<<"task_queue is full, we can't add a task."<<std::endl;
         // thread_pool_conv.notify_one();//这里其实应该要notify
-        while(1)std::cout<<"here"<<std::endl;
         return -1;
     }
     std::unique_lock<std::mutex> unl(thread_pool_mutex);

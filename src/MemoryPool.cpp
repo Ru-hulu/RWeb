@@ -27,7 +27,7 @@ namespace MemoryManager
     void free_Memory(size_t s, void* p)
     {
         if(p==nullptr)return;
-        if(s>512) delete p;//如果太大直接释放
+        if(s>512) ::operator delete (p);//如果太大直接释放
         else//如果不是很大，就还给内存池
         {
             getMemoryPool(s).deallocate(reinterpret_cast<Slot*>(p));
