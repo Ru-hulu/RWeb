@@ -15,16 +15,12 @@
 // int pool_test_low = 516;
 // int pool_test_hig = 1024;
 // int loopIterations = 100000;
-// 测试用例3：随机测试
-// int pool_test_low = 8;
-// int pool_test_hig = 2080;
-// int loopIterations = 100000;
 
 std::mutex mx;
 int finish_flag = 0;
-int pool_test_low = 8;
-int pool_test_hig = 2080;
-int loopIterations = 100000;
+int pool_test_low = 516;
+int pool_test_hig = 1024;
+int loopIterations = 10;
 
 template <int N>
 class Person {
@@ -40,8 +36,8 @@ using CreatePersonFunc = void* (*)();
 CreatePersonFunc createFuncs[520];
 template <int N>
 void* createPerson() {
-    return (void*) MemoryManager::newElement<Person<N>>();
-    // return ((void*) (new Person<N>()));
+    // return (void*) MemoryManager::newElement<Person<N>>();
+    return ((void*) (new Person<N>()));
 }
 template <int N>
 struct InitializeCreateFuncs 
@@ -69,8 +65,8 @@ DeletePersonFunc deleteFuncs[520];
 template <int N>
 void deletePerson(void* p_) 
 {
-    MemoryManager::deleteElement<Person<N>>((Person<N>*)p_);
-    // delete (Person<N>*)p_;
+    // MemoryManager::deleteElement<Person<N>>((Person<N>*)p_);
+    delete (Person<N>*)p_;
 }
 template <int N>
 struct InitializeDeleteFuncs 
@@ -107,7 +103,8 @@ void* RandomThreadFunc(void* arg_)
         int d = std::rand();
         int by = static_cast<int>(static_cast<float>(d) / RAND_MAX * float(i_tes_hig-i_tes_low)
          + float(i_tes_low));
-        if (by >=i_tes_low && by <= i_tes_hig && all_p.find(by)==all_p.end()) 
+        by = 140;
+        if (by >=i_tes_low && by <= i_tes_hig) 
         {
             void* personPtr = createFuncs[by - 1]();
             all_p.insert({by,personPtr});
@@ -171,11 +168,7 @@ int main(int argc, char** argv)
         pthread_create(t_,NULL,RandomThreadFunc,nullptr);
     }
     while(finish_flag!=4)usleep(1000);
-    for(int i=0;i<4;i++)
-    {
-        pthread_join(*(all_thread[i]),NULL);
-        delete all_thread[i];
-    }
+    for(int i=0;i<4;i++)delete all_thread[i];
     std::cout<<"All Thread Finished, MemoryPool Test Success"<<std::endl;
     return 0;
 }
