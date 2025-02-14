@@ -2,8 +2,9 @@
 #include"MemoryPool.hpp"
 #include<unistd.h>
 #include<sys/stat.h>
-#include <sys/mman.h>
+#include<sys/mman.h>
 #include<fstream>
+#include"Logger.hpp"
 std::unordered_map<std::string,std::string> mime = {
             {".html"   , "text/html"},
             {".avi"    , "video/x-msvideo"},
@@ -24,7 +25,7 @@ myTimer::myTimer(requestData* rqtp_,size_t timeoutms):rqtp(rqtp_)
 {
     struct timeval tv;
     gettimeofday(&tv,NULL);
-    expired_time = tv.tv_sec*1000 + tv.tv_usec/1000 + timeoutms;
+    expired_time = tv.tv_sec+ tv.tv_usec/1000 + timeoutms;
     return;
 }
 int myTimer::get_fd()
@@ -38,7 +39,7 @@ myTimer::~myTimer()
     //析沟函数中需要释放requestData;
     if(rqtp!=nullptr)
     {
-        std::cout<<"FD "<<rqtp->getFd()<<" is freed"<<std::endl;
+        LOG_INFO<<"FD "<<rqtp->getFd()<<" expired, free.\n";
         MemoryManager::deleteElement<requestData>(rqtp);
     }    
     return;
@@ -56,7 +57,7 @@ bool myTimer::isValid()
 {
     struct timeval tv;
     gettimeofday(&tv,NULL);
-    size_t nowt = tv.tv_sec*1000 + tv.tv_usec/1000;
+    size_t nowt = tv.tv_sec + tv.tv_usec/1000;
     if(nowt>expired_time || rqtp==nullptr)
     {
         return false;
@@ -119,7 +120,6 @@ void requestData::reset_data()
     keepalive = false;
     method = -1;
     readagaintime = 0;
-    keepalive = false;
     header_map.clear();
     HTTPversion = -1;
     state_handle = -1;
@@ -396,6 +396,7 @@ int requestData::analysisRequest()
         if(send_len != strlen(header))
         {
             perror("Send header failed");
+            LOG_ERR<<"Fd is "<<this->getFd()<<" Send header failed.\n";
             return ANALYSIS_ERROR;
         }
         
@@ -403,7 +404,8 @@ int requestData::analysisRequest()
         //无关紧要的信息写入fd
         if(send_len != strlen(send_content))
         {
-            perror("Send content failed");
+            perror("Send content failed.");
+            LOG_ERR<<"Fd is "<<this->getFd()<<" Send content failed.\n";
             return ANALYSIS_ERROR;
         }
         std::ofstream t_f;
@@ -444,6 +446,7 @@ int requestData::analysisRequest()
         if (stat(file_name.c_str(), &sbuf) < 0)//这个函数的作用是获取一个文件的状态信息
         {
             handleError(fd, 404, "Not Found!");
+            LOG_ERR<<"Fd is "<<this->getFd()<<" Resource invalid.\n";
             return ANALYSIS_ERROR;
         }
 
@@ -457,7 +460,8 @@ int requestData::analysisRequest()
         //将header写入fd
         if(send_len != strlen(header))
         {
-            perror("Send header failed");
+            perror("Send header failed.");
+            LOG_ERR<<"Fd is "<<this->getFd()<<" Send header failed.\n";
             return ANALYSIS_ERROR;
         }
         int src_fd = open(file_name.c_str(), O_RDONLY, 0);
@@ -471,13 +475,17 @@ int requestData::analysisRequest()
         if(send_len != sbuf.st_size)
         {
             perror("Send file failed");
+            LOG_ERR<<"Fd is "<<this->getFd()<<" Write failed.\n";
             return ANALYSIS_ERROR;
         }
         munmap(src_addr, sbuf.st_size);//释放之前映射的一片空间
         return ANALYSIS_SUCCESS;
     }
     else
+    {
+        LOG_ERR<<"Fd is "<<this->getFd()<<" We only support get and post !!!\n";
         return ANALYSIS_ERROR;
+    }
 }
 void requestData::handlerequest()
 {
@@ -491,7 +499,7 @@ void requestData::handlerequest()
             if(r<0)
             {
                 isError = true;
-                std::cout<<"read_n failed"<<std::endl;
+                LOG_ERR<<"FD "<<getFd()<<" read_n failed.\n";
                 break;
                 //如果读的过程中出错了，那么直接删除这个连接
             }
@@ -500,6 +508,7 @@ void requestData::handlerequest()
                 if(readagaintime>=AGAIN_MAX_TIMES)
                 {
                     isError = true;
+                    LOG_ERR<<"FD "<<getFd()<<" readagaintime failed.\n";
                 }
                 else
                 {
@@ -510,6 +519,7 @@ void requestData::handlerequest()
             else if(r==0&&errno==0)
             {
                 isError = true;
+                LOG_ERR<<"Fd "<<fd<<" The connection is closed by the client.\n";
                 break;//对端关闭链接。
             }
             // std::cout<<"r is "<<r<<"errno is "<<errno<<std::endl;
@@ -527,7 +537,7 @@ void requestData::handlerequest()
                 else if(st==PARSE_URI_ERROR)
                 {
                     isError = true;
-                    //std::cout<<"PARSE_URI_ERROR"<<std::endl;
+                    LOG_ERR<<"Fd "<<fd<<" PARSE_URI_ERROR.\n";
                     break;
                 }
                 else if(st == PARSE_URI_SUCCESS)
@@ -544,7 +554,7 @@ void requestData::handlerequest()
                 else if(st == PARSE_HEADER_ERROR)
                 {
                     isError = true;
-                    //std::cout<<"PARSE_HEADER_ERROR"<<std::endl;
+                    LOG_ERR<<"Fd "<<fd<<" PARSE_HEADER_ERROR.\n";
                     break;
                 }
                 if(method==METHOD_GET)
@@ -561,7 +571,7 @@ void requestData::handlerequest()
                 if(header_map.find("Content-Length")==header_map.end())
                 {
                     isError = true;
-                    //std::cout<<"STATE_RECV_BODY"<<std::endl;                    
+                    LOG_ERR<<"Fd "<<fd<<" Method is POST, but header is not completed.\n";
                     break;
                 }
                 int con_size = std::stoi(header_map["Content-Length"]);
@@ -575,12 +585,10 @@ void requestData::handlerequest()
                 int a_ret = analysisRequest();//这里说明需要处理的数据已经全部在content里面了，
                 if(a_ret == ANALYSIS_SUCCESS)
                 {
-                    // std::cout<<"handlerequest: Success analysisRequest"<<std::endl;
                     state_handle=STATE_FINISH;
                 }
                 else
                 {
-                    std::cout<<"handlerequest: Fail analysisRequest"<<std::endl;
                     isError = true;
                 }
                 break;                    
@@ -590,7 +598,6 @@ void requestData::handlerequest()
     //每次都是parse—url-again 然后break到这里重新设定epoll
         if(isError)
         {
-            //std::cout<<"handlerequest Error"<<std::endl;
             MemoryManager::deleteElement<requestData>(this);
             return;
         }
@@ -600,17 +607,18 @@ void requestData::handlerequest()
             if(keepalive)
             {
                 reset_data();
+                LOG_INFO<<"Fd "<<getFd()<<" is a long connection.\n";
                 //std::cout<<"now is kept alive"<<std::endl;
             }
             else
             {
                 //std::cout<<"now is not kept alive"<<std::endl;
                 MemoryManager::deleteElement<requestData>(this);
+                LOG_INFO<<"Fd "<<getFd()<<" is deleted.\n";
                 return;
             }
         }
-        myTimer* tm = MemoryManager::newElement<myTimer>(this,500);
-        // myTimer* tm = new myTimer(this,500);
+        myTimer* tm = MemoryManager::newElement<myTimer>(this,10);
 
         mtimer = tm;
         std::unique_lock<std::mutex>llkk(mutex_timer_q);
@@ -622,8 +630,8 @@ void requestData::handlerequest()
         int ret = epoll_mod(epoll_fd,this,fd,ev_id);
         if(ret<0)
         {
-            // std::cout<<"this is deleted "<<std::endl;
             MemoryManager::deleteElement<requestData>(this);
-            return;
+            LOG_ERR<<"FD "<<getFd()<<" Modify failed\n";
         }
+        return;
 }

@@ -1,4 +1,5 @@
 #include"util.hpp"
+#include"Logger.hpp"
 int socketNonBlock(int fd)
 {
     int flag = 0;
@@ -72,13 +73,10 @@ ssize_t read_n(int fd_,void* bf,size_t n)
 ssize_t write_n(int fd_,void* bf,size_t n)
 {
     size_t swrite = 0 ;
-    char* np = reinterpret_cast<char*>(bf);
     size_t lwrite = n;
     while(lwrite>0)
     {
-        
         ssize_t nw = write(fd_,bf,lwrite);//可能客户端强行中断通信，出现SIGPIPE.
-
         if(nw<0)
         {
             if(errno == EAGAIN || errno == EINTR)//资源不可用 或者 信号被中断
@@ -86,7 +84,12 @@ ssize_t write_n(int fd_,void* bf,size_t n)
                 nw = 0;
             }
             else
+            {
+                // LOG_ERR<<"FD "<<fd_<<" Write failed. Left size is "
+                // <<int(lwrite)<<" / "<<int(n)<<'\n';
+                std::cout<<nw<<" / "<<lwrite<<" / "<<n<<std::endl;
                 return -1;
+            }
         }
         else if(nw == 0)
         {

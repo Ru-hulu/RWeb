@@ -1,6 +1,7 @@
 #include"ThreadPool.hpp"
 #include"MemoryPool.hpp"
 #include"requestData.hpp"
+#include"Logger.hpp"
 Thread_Pack::Thread_Pack(int thread_id_)
 {
     thread_id = thread_id_;
@@ -144,15 +145,15 @@ ThreadPool::~ThreadPool()
     thread_pool_conv.notify_all();
     for(int i=0;i<task_queue.size();i++)
     {
-        std::cout<<"free i "<<i<<std::endl;
-        MemoryManager::deleteElement<Task_Function_Arg>(
-        task_queue[i]);        
+        MemoryManager::deleteElement<Task_Function_Arg>(task_queue[i]);        
     }
+    LOG_INFO<<"All task is freed.\n";
     for(int i=0;i<all_thr.size();i++)
     {
         MemoryManager::deleteElement<Thread_Pack>(all_thr[i]);
+        LOG_INFO<<"Thread "<<all_thr[i]->thread_id<<" is freed.\n";
         //线程的join在析构函数中做了
     }
-    std::cout<<"ThreadPool is deleted"<<std::endl;
+    LOG_INFO<<"ThreadPool is deleted.\n";
     return;
 }

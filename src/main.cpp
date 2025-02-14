@@ -68,8 +68,6 @@ int socket_bind_listen(int port)
 void HandleExpire()
 {
     std::lock_guard<std::mutex> lckg(mutex_timer_q);
-    size_t exp_t = 0;//已经超时的计时器数量
-    size_t exp_c = 0;//长时间没有消息的连接数量
     while(Prio_timer_queue.size())
     {
         myTimer* tt = Prio_timer_queue.top();
@@ -79,8 +77,10 @@ void HandleExpire()
         }
         else
         {
-            if(tt->get_fd()<0) exp_t+=1;
-            else exp_c+=1;
+            if(tt->get_fd()>0)
+            {
+                LOG_INFO<<"Fd "<<tt->get_fd()<<" is expired, we will close it\n";
+            }
             Prio_timer_queue.pop();
             MemoryManager::deleteElement<myTimer>(tt);
         }
@@ -91,7 +91,7 @@ void HandleExpire()
 const int PORT = 8888;
 const std::string PATH = "/";
 const int QSIZE = 400;
-const uint32_t TIMEOUT = 500;
+const uint32_t TIMEOUT = 10;
 const uint32_t MAXQ = 500;
 //主线程中的函数
 //当测试过程中客户端关闭链接的时候。会出现
@@ -149,21 +149,19 @@ void Handle_Events(int epoll_fd,int listen_fd,int even_size,ThreadPool* tp)
         if(happen_fd == listen_fd)
         { 
             // std::cout<<"A new conection arrives!"<<std::endl;
+            LOG_INFO<<"A new conection arrives!\n";
             AcceptNewConnection(listen_fd,epoll_fd,tp);
         }
         else if((e.events & EPOLLHUP)||(e.events & EPOLLERR) || !(e.events & EPOLLIN))
         {
             MemoryManager::deleteElement<requestData>(rqt_);//epoll会删除这个链接
+            LOG_INFO<<"Fd is "<<rqt_->getFd()<<" , conection is closed by the client.\n";
             continue;
         }        //有一方挂起、连接出错、触发事件，但是没有可读数据的时候。
         else//正常触发,需要找一个线程来处理
         {
             //std::cout<<"A new service request arrives!"<<std::endl;
             rqt_->seperateTimer();
-            if(rqt_==nullptr)
-            {
-                std::cout<<"here rqt_ is null"<<std::endl;//不会发生
-            }
             tp->treadpoll_add_task(myHandlefunc,reinterpret_cast<void*>(rqt_));
             //这里的业务逻辑没有封闭，如果当前任务队列已经满了，那么rqt不被添加到任务队列中，会怎样呢？
             //后续还会有epoll_wait的响应吗？

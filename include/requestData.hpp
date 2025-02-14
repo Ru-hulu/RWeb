@@ -15,7 +15,7 @@ const int STATE_RECV_BODY = 3;
 const int STATE_ANALYSIS = 4;
 const int STATE_FINISH = 5;
 
-const int AGAIN_MAX_TIMES = 200;
+const int AGAIN_MAX_TIMES = 300;
 const int MAX_BUFF = 4096;
 
 const int PARSE_URI_AGAIN = -1;
