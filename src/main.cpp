@@ -91,7 +91,6 @@ void HandleExpire()
 const int PORT = 8888;
 const std::string PATH = "/";
 const int QSIZE = 400;
-const uint32_t TIMEOUT = 10;
 const uint32_t MAXQ = 500;
 //主线程中的函数
 //当测试过程中客户端关闭链接的时候。会出现
@@ -188,7 +187,7 @@ int main(int argc, char** argv)
         //std::cout<<"socketNonBlock failed!!!"<<std::endl;
         return 1;
     }
-    async = new AsyncLogging();
+    async = &(AsyncLogging::getitem());
     if(async==nullptr)
     {
         std::cout<<"Log system initial failed!!"<<std::endl;
@@ -200,11 +199,9 @@ int main(int argc, char** argv)
     //监听端口是不挂载计时器的。
     uint32_t eve_id = EPOLLIN|EPOLLET;
     epoll_add(epoll_fd,reinterpret_cast<void*>(rqt_data),listen_fd,eve_id);
-    ThreadPool tp(THREADPOOL_CAPACITY,QSIZE);
-    if(tp.InitialPool()==false)
+    ThreadPool* tp = &ThreadPool::getitem(THREADPOOL_CAPACITY,QSIZE);
+    if(tp->InitialPool()==false)
     {
-        tp.~ThreadPool();
-        //std::cout<<"initial failed"<<std::endl;
         return 1;
     }//以下tp不可能出现shutdown的情况。
     while(true)
@@ -212,7 +209,7 @@ int main(int argc, char** argv)
         int even_size = my_epoll_wait(epoll_fd,events_get,TIMEOUT,MAXQ);
         if(even_size<=0)continue;
         //std::cout<<"now we have "<<even_size<< "connections"<<std::endl;
-        Handle_Events(epoll_fd,listen_fd,even_size,&tp);
+        Handle_Events(epoll_fd,listen_fd,even_size,tp);
         HandleExpire();
         //拿到所有的触发事件
         //判定如果是连接事件，处理新的连接

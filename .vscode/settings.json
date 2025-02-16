@@ -88,6 +88,7 @@
         "timer": "cpp",
         "queue": "cpp",
         "easy": "cpp",
-        "__config": "cpp"
+        "__config": "cpp",
+        "netdb.h": "c"
     }
 }

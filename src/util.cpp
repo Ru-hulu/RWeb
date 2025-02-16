@@ -93,11 +93,11 @@ ssize_t write_n(int fd_,void* bf,size_t n)
         }
         else if(nw == 0)
         {
-            return swrite;
+            return (ssize_t)swrite;
         }
         bf += nw;
         swrite += nw;
         lwrite -= nw;
     }
-    return swrite;
+    return (ssize_t)swrite;
 }

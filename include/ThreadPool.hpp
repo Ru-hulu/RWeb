@@ -5,6 +5,7 @@
 #include<condition_variable>
 #include<vector>
 #include<stdexcept>
+#include"util.hpp"
 
 #ifndef THREADPOOL_HPP
 #define THREADPOOL_HPP
@@ -31,12 +32,10 @@ class Thread_Pack
         int thread_id = 0;
         pthread_t* thread_c;
 };
-class ThreadPool
+class ThreadPool:noncopyable
 {
     public:
         ssize_t now_all_con = 0;
-        ThreadPool(int num_thread,int que_size);
-        ~ThreadPool();
         bool InitialPool();
         void consume_a_task_update_idex();
         void add_a_task_update_idex();
@@ -54,5 +53,9 @@ class ThreadPool
         int tail; //task_queue的尾部
         int task_wait_count; //有多少个任务等待处理，后续应该被分配到每个线程中   
         int queue_size; // 任务队列的长度是固定的。因为一个线程需要处理很多个连接的任务，所以有任务队列
+        static ThreadPool& getitem(int num_thread,int que_size);
+    private:
+        ThreadPool(int num_thread,int que_size);
+        ~ThreadPool();
 };
 #endif

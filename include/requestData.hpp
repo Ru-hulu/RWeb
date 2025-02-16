@@ -76,7 +76,7 @@ class myTimer
 {
     /* data */
     public:
-        myTimer(requestData* rqtp_,size_t timeoutms);
+        myTimer(requestData* rqtp_,size_t timeouts);
         ~myTimer();
         size_t get_expire_time();
         bool isValid();

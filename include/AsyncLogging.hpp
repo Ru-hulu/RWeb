@@ -4,6 +4,7 @@
 #include<vector>
 #include<memory>
 #include<condition_variable>
+#include"util.hpp"
 #ifndef ASYNCLOGGING
 #define ASYNCLOGGING
 class Buff
@@ -21,12 +22,10 @@ class Buff
         char buff_[1024];
         char* cur_;
 };
-class AsyncLogging
+class AsyncLogging:noncopyable
 {
     public:
         typedef std::unique_ptr<Buff> BuffPtr;
-        AsyncLogging();//log时间初始化,current初始化
-        ~AsyncLogging();
         static void* ThreadWriteLog(void* arg_);//真正将数据写入到log中的线程函数
         void BuffWriteFunc(char*,int);//将缓冲区写入的函数
         void rollFd();//如果日志文件太大或者时间很长，需要更新日志文件。
@@ -34,7 +33,10 @@ class AsyncLogging
         void set_empty();
         void set_full();
         bool LogExpired();//看当前Log的是否已经存在太长时间， 如果时间太长就创建新的log.
+        static AsyncLogging& getitem();
     private:
+        AsyncLogging();//log时间初始化,current初始化
+        ~AsyncLogging();
         bool alive = false;
         pthread_t* write_thread;
         BuffPtr currbuff;

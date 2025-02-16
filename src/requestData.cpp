@@ -3,6 +3,7 @@
 #include<unistd.h>
 #include<sys/stat.h>
 #include<sys/mman.h>
+#include<sys/sendfile.h>
 #include<fstream>
 #include"Logger.hpp"
 std::unordered_map<std::string,std::string> mime = {
@@ -21,11 +22,11 @@ std::unordered_map<std::string,std::string> mime = {
             {".mp3"    , "audio/mp3"},
             {"default" , "text/html"}
 }; 
-myTimer::myTimer(requestData* rqtp_,size_t timeoutms):rqtp(rqtp_)
+myTimer::myTimer(requestData* rqtp_,size_t timeouts):rqtp(rqtp_)
 {
     struct timeval tv;
     gettimeofday(&tv,NULL);
-    expired_time = tv.tv_sec+ tv.tv_usec/1000 + timeoutms;
+    expired_time = tv.tv_sec+ tv.tv_usec/1000 + timeouts;
     return;
 }
 int myTimer::get_fd()
@@ -380,7 +381,7 @@ int requestData::analysisRequest()
         {
             keepalive = true;
             sprintf(header, "%sConnection: keep-alive\r\n", header);
-            sprintf(header, "%sKeep-Alive: timeout=%d\r\n", header, 500);
+            sprintf(header, "%sKeep-Alive: timeout=%d\r\n", header, TIMEOUT);
         }//header中写入连接的状态
 
         // cout << "content=" << content << endl;
@@ -430,7 +431,7 @@ int requestData::analysisRequest()
         {
             keepalive = true;
             sprintf(temst, "%sConnection: keep-alive\r\n", header);
-            sprintf(header, "%sKeep-Alive: timeout=%d\r\n", temst, 500);
+            sprintf(header, "%sKeep-Alive: timeout=%d\r\n", temst, TIMEOUT);
         }
         //先在header中写入http版本信息
         //header中写入连接的状态        
@@ -456,29 +457,30 @@ int requestData::analysisRequest()
         sprintf(header, "%sContent-Length: %ld\r\n", temst, sbuf.st_size);
         sprintf(temst, "%s\r\n", header);
         strcpy(header,temst);
-        size_t send_len = (size_t)write_n(fd, header, strlen(header));
+        ssize_t send_len = write_n(fd, header, strlen(header));
         //将header写入fd
-        if(send_len != strlen(header))
+        if(send_len != (ssize_t)strlen(header))
         {
             perror("Send header failed.");
             LOG_ERR<<"Fd is "<<this->getFd()<<" Send header failed.\n";
             return ANALYSIS_ERROR;
         }
         int src_fd = open(file_name.c_str(), O_RDONLY, 0);
+        off_t oft = 0;
+        send_len = sendfile(fd,src_fd,&oft,sbuf.st_size);
         char *src_addr = static_cast<char*>(mmap(NULL, sbuf.st_size, PROT_READ, MAP_PRIVATE, src_fd, 0));
         close(src_fd);
         //把这个文件file_name映射到一个内存空间中，并且返回内存的首地址。这样就可以像访问内存一样访问文件了
-    
         // 发送文件并校验完整性
-        send_len = write_n(fd, src_addr, sbuf.st_size);
+        // send_len = write_n(fd, src_addr, sbuf.st_size);
         //把文件内容发送到fd中
-        if(send_len != sbuf.st_size)
+        if(send_len != (ssize_t)sbuf.st_size)
         {
             perror("Send file failed");
             LOG_ERR<<"Fd is "<<this->getFd()<<" Write failed.\n";
             return ANALYSIS_ERROR;
         }
-        munmap(src_addr, sbuf.st_size);//释放之前映射的一片空间
+        // munmap(src_addr, sbuf.st_size);//释放之前映射的一片空间
         return ANALYSIS_SUCCESS;
     }
     else

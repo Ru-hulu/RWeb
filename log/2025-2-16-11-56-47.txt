@@ -1,0 +1,3 @@
+Time stamp /home/r/Mysoftware/RWeb/src/main.cpp---197---Test log system !!
+Time stamp /home/r/Mysoftware/RWeb/src/main.cpp---151---A new conection arrives!
+Time stamp /home/r/Mysoftware/RWeb/src/requestData.cpp---524---Fd 6 The connection is closed by the client.

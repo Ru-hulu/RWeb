@@ -56,20 +56,10 @@ static void *threadpool_thread(void *threadpool)
     pthread_exit(NULL);
     return(NULL);
 }
-int DestroyThreadP(ThreadPool* thr_p)
+ThreadPool& ThreadPool::getitem(int num_thread,int que_size)
 {
-    std::unique_lock<std::mutex>mt(thr_p->thread_pool_mutex);
-    if(thr_p==nullptr)
-    {
-        return THREADPOOL_INVALID;
-    }
-    if(thr_p->shutdown)
-    {
-        return THREADPOOL_SHUTDOWN;
-    }
-    mt.unlock();
-    delete thr_p;
-    return 1;
+    static ThreadPool th_(num_thread,que_size);
+    return th_;
 }
 ThreadPool::ThreadPool(int num_thread,int queue_size_)
 {

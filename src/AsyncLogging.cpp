@@ -28,6 +28,11 @@ AsyncLogging::~AsyncLogging()
     pthread_join(*write_thread,NULL);
     delete write_thread;
 }   
+AsyncLogging& AsyncLogging::getitem()
+{
+    static AsyncLogging async;
+    return async;
+}
 AsyncLogging::AsyncLogging()
 {
     rollFd();
